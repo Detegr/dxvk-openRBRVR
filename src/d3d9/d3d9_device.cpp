@@ -2888,10 +2888,7 @@ namespace dxvk {
         GetCommonShader(m_state.pixelShader));
     }
 
-    // TODO_MMF: I think this will be broken, need advice.  Luckily this is not
-    // hit in GTR2.
-    if (dst->GetMapMode() == D3D9_COMMON_BUFFER_MAP_MODE_BUFFER
-        || dst->GetMapMode() == D3D9_COMMON_BUFFER_MAP_MODE_UNMAPPABLE) {
+    if (dst->GetMapMode() == D3D9_COMMON_BUFFER_MAP_MODE_BUFFER) {
       uint32_t copySize = VertexCount * decl->GetSize();
 
       EmitCs([
