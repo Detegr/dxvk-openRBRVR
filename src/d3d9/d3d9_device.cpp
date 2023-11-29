@@ -47,8 +47,7 @@ namespace dxvk {
     , m_behaviorFlags   ( BehaviorFlags )
     , m_adapter         ( pAdapter )
     , m_dxvkDevice      ( dxvkDevice )
-    , m_textureMemoryAllocator ( )
-    , m_bufferMemoryAllocator ( )
+    , m_memoryAllocator ( )
     , m_shaderAllocator ( )
     , m_shaderModules   ( new D3D9ShaderModuleSet )
     , m_stagingBuffer   ( dxvkDevice, StagingBufferSize )
@@ -187,10 +186,7 @@ namespace dxvk {
     m_lastHazardsRT = 0;
   }
 
-  // TODO_MMF: buffer unmapping shutdown workaround.
-  bool g_shuttingDown = false;
   D3D9DeviceEx::~D3D9DeviceEx() {
-    g_shuttingDown = true;
   
     // Avoids hanging when in this state, see comment
     // in DxvkDevice::~DxvkDevice.
@@ -4644,7 +4640,6 @@ namespace dxvk {
     pResource->SetLocked(Subresource, true);
 
     UnmapTextures();
-    UnmapBuffers();
 
     const bool noDirtyUpdate = Flags & D3DLOCK_NO_DIRTY_UPDATE;
     if ((desc.Pool == D3DPOOL_DEFAULT || !noDirtyUpdate) && !readOnly) {
@@ -4732,7 +4727,6 @@ namespace dxvk {
       pResource->DestroyBuffer();
 
     UnmapTextures();
-    UnmapBuffers();
     return D3D_OK;
   }
 
@@ -4906,7 +4900,6 @@ namespace dxvk {
         slice.slice);
     }
     UnmapTextures();
-    UnmapBuffers();
     ConsiderFlush(GpuFlushType::ImplicitWeakHint);
   }
 
@@ -4977,14 +4970,12 @@ namespace dxvk {
     Rc<DxvkBuffer> mappingBuffer = pResource->GetBuffer<D3D9_COMMON_BUFFER_TYPE_MAPPING>();
 
     DxvkBufferSliceHandle physSlice;
-    void* mapPtr;
 
     if ((Flags & D3DLOCK_DISCARD) && (directMapping || needsReadback)) {
       // Allocate a new backing slice for the buffer and set
       // it as the 'new' mapped slice. This assumes that the
       // only way to invalidate a buffer is by mapping it.
       physSlice = pResource->DiscardMapSlice();
-      mapPtr = physSlice.mapPtr;
 
       EmitCs([
         cBuffer      = std::move(mappingBuffer),
@@ -4999,12 +4990,7 @@ namespace dxvk {
       // Use map pointer from previous map operation. This
       // way we don't have to synchronize with the CS thread
       // if the map mode is D3DLOCK_NOOVERWRITE.
-      if (pResource->GetMapMode() != D3D9_COMMON_BUFFER_MAP_MODE_UNMAPPABLE)
-        mapPtr = pResource->GetMappedSlice().mapPtr;
-      else {
-        pResource->AllocData();
-        mapPtr = MapBuffer(pResource);
-      }
+	  physSlice = pResource->GetMappedSlice();
 
       const bool needsReadback = pResource->NeedsReadback();
       const bool readOnly = Flags & D3DLOCK_READONLY;
@@ -5021,7 +5007,7 @@ namespace dxvk {
       }
     }
 
-    uint8_t* data = reinterpret_cast<uint8_t*>(mapPtr);
+    uint8_t* data = reinterpret_cast<uint8_t*>(physSlice.mapPtr);
     // The offset/size is not clamped to or affected by the desc size.
     data += OffsetToLock;
 
@@ -5038,7 +5024,6 @@ namespace dxvk {
     pResource->IncrementLockCount();
 
     UnmapTextures();
-    UnmapBuffers();
     return D3D_OK;
   }
 
@@ -5048,17 +5033,12 @@ namespace dxvk {
     WaitStagingBuffer();
 
     auto dstBuffer = pResource->GetBufferSlice<D3D9_COMMON_BUFFER_TYPE_REAL>();
+    auto srcSlice = pResource->GetMappedSlice();
     
-    void* srcMapPtr;
-    if (pResource->GetMapMode() != D3D9_COMMON_BUFFER_MAP_MODE_UNMAPPABLE)
-      srcMapPtr = pResource->GetMappedSlice().mapPtr;
-    else
-      srcMapPtr = pResource->GetData();
-
     D3D9Range& range = pResource->DirtyRange();
 
     D3D9BufferSlice slice = AllocStagingBuffer(range.max - range.min);
-    void* srcData = reinterpret_cast<uint8_t*>(srcMapPtr) + range.min;
+    void* srcData = reinterpret_cast<uint8_t*>(srcSlice.mapPtr) + range.min;
     memcpy(slice.mapPtr, srcData, range.max - range.min);
 
     EmitCs([
@@ -5079,7 +5059,6 @@ namespace dxvk {
     TrackBufferMappingBufferSequenceNumber(pResource);
 
     UnmapTextures();
-    UnmapBuffers();
     ConsiderFlush(GpuFlushType::ImplicitWeakHint);
     return D3D_OK;
   }
@@ -7747,14 +7726,14 @@ namespace dxvk {
     // Will only be called inside the device lock
 
 #ifdef D3D9_ALLOW_UNMAPPING
-    uint32_t mappedMemory = m_textureMemoryAllocator.MappedMemory();
+    uint32_t mappedMemory = m_memoryAllocator.MappedMemory();
     if (likely(mappedMemory < uint32_t(m_d3d9Options.textureMemory)))
       return;
 
     uint32_t threshold = (m_d3d9Options.textureMemory / 4) * 3;
 
     auto iter = m_mappedTextures.leastRecentlyUsedIter();
-    while (m_textureMemoryAllocator.MappedMemory() >= threshold && iter != m_mappedTextures.leastRecentlyUsedEndIter()) {
+    while (m_memoryAllocator.MappedMemory() >= threshold && iter != m_mappedTextures.leastRecentlyUsedEndIter()) {
       if (unlikely((*iter)->IsAnySubresourceLocked() != 0)) {
         iter++;
         continue;
@@ -7765,73 +7744,6 @@ namespace dxvk {
     }
 #endif
   }
-
-  void* D3D9DeviceEx::MapBuffer(D3D9CommonBuffer* pBuffer)
-  {
-    // Will only be called inside the device lock
-    void* ptr = pBuffer->GetData();
-
-#ifdef D3D9_ALLOW_UNMAPPING
-    if (pBuffer->GetMapMode() ==
-        D3D9_COMMON_BUFFER_MAP_MODE_UNMAPPABLE) {
-      m_mappedBuffers.insert(pBuffer);
-    }
-#endif
-
-    return ptr;
-  }
-
-  void
-  D3D9DeviceEx::TouchMappedBuffer(D3D9CommonBuffer* pBuffer)
-  {
-#ifdef D3D9_ALLOW_UNMAPPING
-    if (pBuffer->GetMapMode() != D3D9_COMMON_BUFFER_MAP_MODE_UNMAPPABLE)
-      return;
-
-    D3D9DeviceLock lock = LockDevice();
-    assert(false);
-    // TODO_MMF: dead code
-    //m_mappedBuffers.touch(pBuffer);
-#endif
-  }
-
-  void D3D9DeviceEx::RemoveMappedBuffer(D3D9CommonBuffer* pBuffer)
-  {
-#ifdef D3D9_ALLOW_UNMAPPING
-    if (pBuffer->GetMapMode() != D3D9_COMMON_BUFFER_MAP_MODE_UNMAPPABLE)
-      return;
-    
-    if (!g_shuttingDown) {
-      D3D9DeviceLock lock = LockDevice();
-      m_mappedBuffers.erase(pBuffer);
-    }
-#endif
-  }
-
-  void
-  D3D9DeviceEx::UnmapBuffers()
-  {
-    // Will only be called inside the device lock
-#ifdef D3D9_ALLOW_UNMAPPING
-    uint32_t mappedMemory = m_bufferMemoryAllocator.MappedMemory();
-    if (likely(mappedMemory < uint32_t(m_d3d9Options.bufferMemory)))
-      return;
-
-    uint32_t threshold = (m_d3d9Options.bufferMemory / 4) * 3;
-
-    auto iter = m_mappedBuffers.begin();
-    while (m_bufferMemoryAllocator.MappedMemory() >= threshold && iter != m_mappedBuffers.end()) {
-      if (unlikely((*iter)->GetLockCount() != 0)) {
-        iter++;
-        continue;
-      }
-
-      (*iter)->UnmapData();
-      iter = m_mappedBuffers.erase(iter);
-    }
-#endif
-  }
-
 
 
   ////////////////////////////////////

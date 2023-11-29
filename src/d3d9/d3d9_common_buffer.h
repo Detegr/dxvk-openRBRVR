@@ -95,10 +95,6 @@ namespace dxvk {
     */
     D3D9_COMMON_BUFFER_MAP_MODE DetermineMapMode(const D3D9Options* options) const;
 
-    bool AllocData();
-    void* GetData(); 
-    void UnmapData() { m_data.Unmap(); }
-
     /**
     * \brief Get the mapping mode of the buffer, (ie. direct mapping or backed)
     */
