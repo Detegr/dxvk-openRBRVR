@@ -298,7 +298,7 @@ namespace dxvk {
 
     if (fs && fs->flags().test(DxvkShaderFlag::HasSampleRateShading)) {
       msInfo.sampleShadingEnable  = VK_TRUE;
-      msInfo.minSampleShading     = device->config().forcedSampleRateShadingFactor;
+      msInfo.minSampleShading     = 1.0f;
     }
 
     // Alpha to coverage is not supported with sample mask exports.

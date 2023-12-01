@@ -48,6 +48,7 @@ typedef const void* LPCVOID;
 typedef size_t SIZE_T;
 
 typedef int8_t INT8;
+
 typedef uint8_t UINT8;
 typedef uint8_t BYTE;
 
@@ -55,13 +56,9 @@ typedef int16_t SHORT;
 typedef uint16_t USHORT;
 
 typedef int64_t LONGLONG;
-typedef int64_t INT64;
-
 typedef uint64_t ULONGLONG;
-typedef uint64_t UINT64;
 
 typedef intptr_t LONG_PTR;
-typedef uintptr_t ULONG_PTR;
 
 typedef float FLOAT;
 

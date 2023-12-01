@@ -681,6 +681,7 @@ namespace dxvk {
     return m_buffer;
   }
 
+
   DxvkBufferSlice D3D9CommonTexture::GetBufferSlice(UINT Subresource) {
     return DxvkBufferSlice(GetBuffer(), m_memoryOffset[Subresource], GetMipSize(Subresource));
   }

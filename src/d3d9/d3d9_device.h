@@ -1201,7 +1201,6 @@ namespace dxvk {
       UINT Subresource);
 
     void UnmapTextures();
-    void UnmapBuffers();
 
     uint64_t GetCurrentSequenceNumber();
 
@@ -1366,7 +1365,7 @@ namespace dxvk {
     std::atomic<uint32_t>           m_losableResourceCounter   = { 0 };
 
 #ifdef D3D9_ALLOW_UNMAPPING
-	lru_list<D3D9CommonTexture*>    m_mappedTextures;
+    lru_list<D3D9CommonTexture*>    m_mappedTextures;
 #endif
 
     // m_state should be declared last (i.e. freed first), because it

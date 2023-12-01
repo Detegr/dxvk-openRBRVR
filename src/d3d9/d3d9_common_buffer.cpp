@@ -44,30 +44,6 @@ namespace dxvk {
     return m_parent->UnlockBuffer(this);
   }
 
-  D3D9_COMMON_BUFFER_MAP_MODE D3D9CommonBuffer::DetermineMapMode(const D3D9Options* options) const {
-    if (m_desc.Pool != D3DPOOL_DEFAULT)
-      return D3D9_COMMON_BUFFER_MAP_MODE_BUFFER;
-
-    // CSGO keeps vertex buffers locked across multiple frames and writes to it. It uses them for drawing without unlocking first.
-    // Tests show that D3D9 DEFAULT + USAGE_DYNAMIC behaves like a directly mapped buffer even when unlocked.
-    // DEFAULT + WRITEONLY does not behave like a directly mapped buffer EXCEPT if its locked at the moment.
-    // That's annoying to implement so we just always directly map DEFAULT + WRITEONLY.
-    if (!(m_desc.Usage & (D3DUSAGE_DYNAMIC | D3DUSAGE_WRITEONLY)))
-      return D3D9_COMMON_BUFFER_MAP_MODE_BUFFER;
-
-    // Tests show that DISCARD does not work for pure SWVP devices.
-    // So force staging buffer path to avoid stalls.
-    // Dark Romance: Vampire in Love also expects draws to be synchronous
-    // and breaks if we respect NOOVERWRITE.
-    // D&D Temple of Elemental Evil breaks if we respect DISCARD.
-    if (m_parent->CanOnlySWVP())
-      return D3D9_COMMON_BUFFER_MAP_MODE_BUFFER;
-
-    if (!options->allowDirectBufferMapping)
-      return D3D9_COMMON_BUFFER_MAP_MODE_BUFFER;
-
-    return D3D9_COMMON_BUFFER_MAP_MODE_DIRECT;
-  }
 
   HRESULT D3D9CommonBuffer::ValidateBufferProperties(const D3D9_BUFFER_DESC* pDesc) {
     if (pDesc->Size == 0)
@@ -87,6 +63,32 @@ namespace dxvk {
   }
 
   
+  D3D9_COMMON_BUFFER_MAP_MODE D3D9CommonBuffer::DetermineMapMode(const D3D9Options* options) const {
+    if (m_desc.Pool != D3DPOOL_DEFAULT)
+      return D3D9_COMMON_BUFFER_MAP_MODE_BUFFER;
+
+    // CSGO keeps vertex buffers locked across multiple frames and writes to it. It uses them for drawing without unlocking first.
+    // Tests show that D3D9 DEFAULT + USAGE_DYNAMIC behaves like a directly mapped buffer even when unlocked.
+    // DEFAULT + WRITEONLY does not behave like a directly mapped buffer EXCEPT if its locked at the moment.
+    // That's annoying to implement so we just always directly map DEFAULT + WRITEONLY.
+    if (!(m_desc.Usage & (D3DUSAGE_DYNAMIC | D3DUSAGE_WRITEONLY)))
+      return D3D9_COMMON_BUFFER_MAP_MODE_BUFFER;
+
+    // Tests show that DISCARD does not work for pure SWVP devices.
+    // So force staging buffer path to avoid stalls.
+    // Dark Romance: Vampire in Love also expects draws to be synchronous
+    // and breaks if we respect NOOVERWRITE.
+    // D&D Temple of Elemental Evil breaks if we respect DISCARD. 
+    if (m_parent->CanOnlySWVP())
+      return D3D9_COMMON_BUFFER_MAP_MODE_BUFFER;
+
+    if (!options->allowDirectBufferMapping)
+      return D3D9_COMMON_BUFFER_MAP_MODE_BUFFER;
+
+    return D3D9_COMMON_BUFFER_MAP_MODE_DIRECT;
+  }
+
+
   Rc<DxvkBuffer> D3D9CommonBuffer::CreateBuffer() const {
     DxvkBufferCreateInfo  info;
     info.size   = m_desc.Size;
@@ -164,4 +166,4 @@ namespace dxvk {
     return m_parent->GetDXVKDevice()->createBuffer(info, memoryFlags);
   }
 
-  }
+}

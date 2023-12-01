@@ -30,7 +30,6 @@
 #ifdef MSC_VER
 #pragma fenv_access (on)
 #endif
-#include <assert.h>
 
 namespace dxvk {
 
@@ -186,8 +185,8 @@ namespace dxvk {
     m_lastHazardsRT = 0;
   }
 
+
   D3D9DeviceEx::~D3D9DeviceEx() {
-  
     // Avoids hanging when in this state, see comment
     // in DxvkDevice::~DxvkDevice.
     if (this_thread::isInModuleDetachment())
@@ -4410,7 +4409,7 @@ namespace dxvk {
       return 0;
 
     std::array<uint32_t, 3> offsets = { pBox->Front, pBox->Top, pBox->Left };
-    
+
     uint32_t elementSize = 1;
 
     if (FormatInfo != nullptr) {
@@ -4990,7 +4989,7 @@ namespace dxvk {
       // Use map pointer from previous map operation. This
       // way we don't have to synchronize with the CS thread
       // if the map mode is D3DLOCK_NOOVERWRITE.
-	  physSlice = pResource->GetMappedSlice();
+      physSlice = pResource->GetMappedSlice();
 
       const bool needsReadback = pResource->NeedsReadback();
       const bool readOnly = Flags & D3DLOCK_READONLY;
@@ -5034,7 +5033,7 @@ namespace dxvk {
 
     auto dstBuffer = pResource->GetBufferSlice<D3D9_COMMON_BUFFER_TYPE_REAL>();
     auto srcSlice = pResource->GetMappedSlice();
-    
+
     D3D9Range& range = pResource->DirtyRange();
 
     D3D9BufferSlice slice = AllocStagingBuffer(range.max - range.min);
@@ -5071,8 +5070,7 @@ namespace dxvk {
     if (pResource->DecrementLockCount() != 0)
       return D3D_OK;
 
-    if (pResource->GetMapMode() != D3D9_COMMON_BUFFER_MAP_MODE_BUFFER
-      && pResource->GetMapMode() != D3D9_COMMON_BUFFER_MAP_MODE_UNMAPPABLE)
+    if (pResource->GetMapMode() != D3D9_COMMON_BUFFER_MAP_MODE_BUFFER)
       return D3D_OK;
 
     if (pResource->DirtyRange().IsDegenerate())
@@ -7744,7 +7742,6 @@ namespace dxvk {
     }
 #endif
   }
-
 
   ////////////////////////////////////
   // D3D9 Device Lost

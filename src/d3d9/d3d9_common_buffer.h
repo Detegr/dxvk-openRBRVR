@@ -5,7 +5,6 @@
 
 #include "d3d9_device_child.h"
 #include "d3d9_format.h"
-#include "d3d9_mem.h"
 
 namespace dxvk {
 
@@ -14,8 +13,7 @@ namespace dxvk {
    */
   enum D3D9_COMMON_BUFFER_MAP_MODE {
     D3D9_COMMON_BUFFER_MAP_MODE_BUFFER,
-    D3D9_COMMON_BUFFER_MAP_MODE_DIRECT,
-    D3D9_COMMON_BUFFER_MAP_MODE_UNMAPPABLE
+    D3D9_COMMON_BUFFER_MAP_MODE_DIRECT
   };
 
   /**
@@ -242,7 +240,6 @@ namespace dxvk {
 
     uint64_t                    m_seq = 0ull;
 
-    D3D9Memory                  m_data;
   };
 
 }

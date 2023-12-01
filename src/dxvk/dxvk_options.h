@@ -36,9 +36,6 @@ namespace dxvk {
     /// Forces swap chain into MAILBOX (if true)
     /// or FIFO_RELAXED (if false) present mode
     Tristate tearFree;
-
-    /// Forced Sample Rate Shading factor
-    float forcedSampleRateShadingFactor;
   };
 
 }
