@@ -5,23 +5,17 @@
 #pragma GCC diagnostic ignored "-Wnon-virtual-dtor"
 #endif
 
-using PFN___wineopenxr_GetVulkanInstanceExtensions = int (WINAPI *)(uint32_t, uint32_t *, char *);
-using PFN___wineopenxr_GetVulkanDeviceExtensions = int (WINAPI *)(uint32_t, uint32_t *, char *);
+using openRBRVR_Exec = int64_t (*)(uint64_t, uint64_t);
 
 namespace dxvk {
   
-  struct WineXrFunctions {
-    PFN___wineopenxr_GetVulkanInstanceExtensions __wineopenxr_GetVulkanInstanceExtensions = nullptr;
-    PFN___wineopenxr_GetVulkanDeviceExtensions __wineopenxr_GetVulkanDeviceExtensions = nullptr;
-  };
-  
-  WineXrFunctions g_winexrFunctions;
   DxvkXrProvider DxvkXrProvider::s_instance;
 
   DxvkXrProvider:: DxvkXrProvider() { }
 
   DxvkXrProvider::~DxvkXrProvider() { }
 
+  openRBRVR_Exec g_openRBRVR_exec;
 
   std::string_view DxvkXrProvider::getName() {
     return "OpenXR";
@@ -42,8 +36,17 @@ namespace dxvk {
 
   void DxvkXrProvider::initInstanceExtensions() {
     std::lock_guard<dxvk::mutex> lock(m_mutex);
-    if (m_initializedInsExt)
+
+    if (!m_openrbrvr)
+        m_openrbrvr = this->loadLibrary();
+
+    if (!m_openrbrvr || m_initializedInsExt)
       return;
+
+    if (!this->loadFunctions()) {
+      this->shutdown();
+      return;
+    }
 
     m_insExtensions = this->queryInstanceExtensions();
     m_initializedInsExt = true;
@@ -51,84 +54,76 @@ namespace dxvk {
 
 
   bool DxvkXrProvider::loadFunctions() {
-    g_winexrFunctions.__wineopenxr_GetVulkanInstanceExtensions =
-        reinterpret_cast<PFN___wineopenxr_GetVulkanInstanceExtensions>(this->getSym("__wineopenxr_GetVulkanInstanceExtensions"));
-    g_winexrFunctions.__wineopenxr_GetVulkanDeviceExtensions =
-        reinterpret_cast<PFN___wineopenxr_GetVulkanDeviceExtensions>(this->getSym("__wineopenxr_GetVulkanDeviceExtensions"));
-    return g_winexrFunctions.__wineopenxr_GetVulkanInstanceExtensions != nullptr
-      && g_winexrFunctions.__wineopenxr_GetVulkanDeviceExtensions != nullptr;
+    g_openRBRVR_exec = reinterpret_cast<openRBRVR_Exec>(GetProcAddress(m_openrbrvr, "openRBRVR_Exec"));
+    return g_openRBRVR_exec != nullptr;
   }
 
 
   void DxvkXrProvider::initDeviceExtensions(const DxvkInstance* instance) {
     std::lock_guard<dxvk::mutex> lock(m_mutex);
+
     if (m_initializedDevExt)
       return;
     
     m_devExtensions = this->queryDeviceExtensions();
     m_initializedDevExt = true;
+
+    this->shutdown();
   }
 
 
   DxvkNameSet DxvkXrProvider::queryInstanceExtensions() const {
-    auto extensionList = env::getEnvVar("GTR2_XR_VK_INSTANCE_EXT_REQUIREMENTS");
-    return parseExtensionList(extensionList, true /*instance*/);
+    auto set = DxvkNameSet();
+    set.add(VK_KHR_SURFACE_EXTENSION_NAME);
+	set.add(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
+
+    auto extensionList = (const char*)g_openRBRVR_exec(0x4, 0);
+    auto exts = parseExtensionList(extensionList);
+    set.merge(exts);
+
+    return set;
   }
   
   
   DxvkNameSet DxvkXrProvider::queryDeviceExtensions() const {
-    auto extensionList = env::getEnvVar("GTR2_XR_VK_DEVICE_EXT_REQUIREMENTS");
-    return parseExtensionList(extensionList, false /*instance*/);
+    auto set = DxvkNameSet();
+    set.add(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
+
+    auto extensionList = (const char*)g_openRBRVR_exec(0x8, 0);
+    auto exts = parseExtensionList(extensionList);
+    set.merge(exts);
+
+    return set;
   }
+
   
-  
-  DxvkNameSet
-  DxvkXrProvider::parseExtensionList(const std::string& str,
-                                     bool instance) const
-  {
+  DxvkNameSet DxvkXrProvider::parseExtensionList(const std::string& str) const {
     DxvkNameSet result;
     
     std::stringstream strstream(str);
     std::string       section;
     
-    if (instance)
-      Logger::info("OpenXR: Instance Extensions requested:");
-    else
-      Logger::info("OpenXR: Device Extensions requested:");
-
-    while (std::getline(strstream, section, ' ')) {
+    while (std::getline(strstream, section, ' '))
       result.add(section.c_str());
-      Logger::info(section);
-    }
     
     return result;
   }
   
   
   void DxvkXrProvider::shutdown() {
-    if (m_loadedOxrApi)
-      this->freeLibrary();
-    
-    m_loadedOxrApi      = false;
-    m_wineOxr = nullptr;
   }
 
 
   HMODULE DxvkXrProvider::loadLibrary() {
-    HMODULE handle = ::LoadLibrary("wineopenxr.dll");
-
-    m_loadedOxrApi = handle != nullptr;
-    return handle;
+      return GetModuleHandle("Plugins\\openRBRVR.dll");
   }
 
 
   void DxvkXrProvider::freeLibrary() {
-    ::FreeLibrary(m_wineOxr);
   }
 
   
   void* DxvkXrProvider::getSym(const char* sym) {
-    return reinterpret_cast<void*>(
-      ::GetProcAddress(m_wineOxr, sym));
+      return nullptr;
   }
 }

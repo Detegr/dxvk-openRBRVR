@@ -7,58 +7,63 @@
 
 namespace dxvk {
 
-class DxvkInstance;
+  class DxvkInstance;
 
-/**
- * \brief OpenXR instance
- *
- * Loads OpenXR to provide access to Vulkan extension queries.
- */
-class DxvkXrProvider : public DxvkExtensionProvider
-{
+  /**
+   * \brief OpenXR instance
+   * 
+   * Loads OpenXR to provide access to Vulkan extension queries.
+   */
+  class DxvkXrProvider : public DxvkExtensionProvider {
+    
+  public:
+    
+    DxvkXrProvider();
+    ~DxvkXrProvider();
 
-public:
-  DxvkXrProvider();
-  ~DxvkXrProvider();
+    std::string_view getName();
 
-  std::string_view getName();
+    DxvkNameSet getInstanceExtensions();
 
-  DxvkNameSet getInstanceExtensions();
+    DxvkNameSet getDeviceExtensions(
+            uint32_t      adapterId);
+    
+    void initInstanceExtensions();
 
-  DxvkNameSet getDeviceExtensions(uint32_t adapterId);
+    void initDeviceExtensions(
+      const DxvkInstance* instance);
 
-  void initInstanceExtensions();
+    static DxvkXrProvider s_instance;
 
-  void initDeviceExtensions(const DxvkInstance* instance);
+  private:
 
-  static DxvkXrProvider s_instance;
+    dxvk::mutex           m_mutex;
+    HMODULE               m_openrbrvr = nullptr;
 
-private:
-  dxvk::mutex m_mutex;
-  HMODULE m_wineOxr = nullptr;
+    bool m_loadedOxrApi      = false;
+    bool m_initializedInsExt = false;
+    bool m_initializedDevExt = false;
 
-  bool m_loadedOxrApi = false;
-  bool m_initializedInsExt = false;
-  bool m_initializedDevExt = false;
+    DxvkNameSet              m_insExtensions;
+    DxvkNameSet              m_devExtensions;
+    
+    DxvkNameSet queryInstanceExtensions() const;
 
-  DxvkNameSet m_insExtensions;
-  DxvkNameSet m_devExtensions;
+    DxvkNameSet queryDeviceExtensions() const;
 
-  DxvkNameSet queryInstanceExtensions() const;
+    DxvkNameSet parseExtensionList(
+      const std::string& str) const;
+    
+    bool loadFunctions();
 
-  DxvkNameSet queryDeviceExtensions() const;
+    void shutdown();
 
-  DxvkNameSet parseExtensionList(const std::string& str, bool instance) const;
+    HMODULE loadLibrary();
 
-  bool loadFunctions();
+    void freeLibrary();
 
-  void shutdown();
-
-  HMODULE loadLibrary();
-
-  void freeLibrary();
-
-  void* getSym(const char* sym);
-};
-
+    void* getSym(const char* sym);
+    
+  };
+  
 }
