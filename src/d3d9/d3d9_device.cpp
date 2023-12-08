@@ -4754,6 +4754,24 @@ namespace dxvk {
     return D3D_OK;
   }
 
+  void D3D9DeviceEx::CopyTextureToVkImage(
+    const D3D9CommonTexture* pSrcTexture,
+    Rc<DxvkImage> dstImage) {
+    WaitStagingBuffer(); // TODO: Needed?
+    constexpr VkImageSubresourceLayers layers = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
+    EmitCs([
+      cDstImage  = dstImage,
+      cSrcImage  = pSrcTexture->GetImage(),
+      cDstLayers = layers,
+      cSrcLayers = layers
+    ] (DxvkContext* ctx) {
+      ctx->copyImage(
+        cDstImage, cDstLayers, VkOffset3D { 0, 0, 0 },
+        cSrcImage, cSrcLayers, VkOffset3D { 0, 0, 0 },
+        cDstImage->mipLevelExtent(cDstLayers.mipLevel));
+    });
+  }
+
   void D3D9DeviceEx::UpdateTextureFromBuffer(
     D3D9CommonTexture* pDestTexture,
     D3D9CommonTexture* pSrcTexture,

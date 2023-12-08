@@ -75,11 +75,13 @@ namespace dxvk {
   DxvkNameSet DxvkXrProvider::queryInstanceExtensions() const {
     auto set = DxvkNameSet();
     set.add(VK_KHR_SURFACE_EXTENSION_NAME);
-	set.add(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
+    set.add(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
 
     auto extensionList = (const char*)g_openRBRVR_exec(0x4, 0);
-    auto exts = parseExtensionList(extensionList);
-    set.merge(exts);
+    if(extensionList) {
+        auto exts = parseExtensionList(extensionList);
+        set.merge(exts);
+    }
 
     return set;
   }
@@ -90,8 +92,10 @@ namespace dxvk {
     set.add(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
 
     auto extensionList = (const char*)g_openRBRVR_exec(0x8, 0);
-    auto exts = parseExtensionList(extensionList);
-    set.merge(exts);
+    if(extensionList) {
+        auto exts = parseExtensionList(extensionList);
+        set.merge(exts);
+    }
 
     return set;
   }

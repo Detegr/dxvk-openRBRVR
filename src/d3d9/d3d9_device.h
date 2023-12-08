@@ -739,6 +739,10 @@ namespace dxvk {
             D3D9CommonTexture*      pResource,
             UINT                    Subresource);
 
+    void CopyTextureToVkImage(
+        const D3D9CommonTexture* pSrcTexture,
+        Rc<DxvkImage> dstImage);
+
     void UpdateTextureFromBuffer(
             D3D9CommonTexture*      pDestTexture,
             D3D9CommonTexture*      pSrcTexture,
