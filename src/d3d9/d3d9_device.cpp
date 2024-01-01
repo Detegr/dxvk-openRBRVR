@@ -4754,22 +4754,151 @@ namespace dxvk {
     return D3D_OK;
   }
 
-  void D3D9DeviceEx::CopyTextureToVkImage(
-    const D3D9CommonTexture* pSrcTexture,
+  HRESULT D3D9DeviceEx::CopyTextureToVkImage(
+    D3D9CommonTexture* pSrcTexture,
     Rc<DxvkImage> dstImage) {
+
     WaitStagingBuffer(); // TODO: Needed?
+
+    bool fastPath = true;
+
+    Rc<DxvkImage> srcImage = pSrcTexture->GetImage();
+
+    if (dstImage == nullptr || srcImage == nullptr)
+        return D3DERR_INVALIDCALL;
+
+    const DxvkFormatInfo* dstFormatInfo = lookupFormatInfo(dstImage->info().format);
+    const DxvkFormatInfo* srcFormatInfo = lookupFormatInfo(srcImage->info().format);
+
+    VkExtent3D srcExtent = srcImage->mipLevelExtent(0);
+    VkExtent3D dstExtent = dstImage->mipLevelExtent(0);
+
+    // Assume formats to be similar
+    bool similar = true;
+
+    // Copies are only supported on similar formats.
+    fastPath &= similar;
+
+    // Copies are only supported if the sample count matches,
+    // otherwise we need to resolve.
+    bool needsResolve = srcImage->info().sampleCount != VK_SAMPLE_COUNT_1_BIT;
+    bool fbBlit       = dstImage->info().sampleCount != VK_SAMPLE_COUNT_1_BIT;
+    fastPath &= !fbBlit;
+
     constexpr VkImageSubresourceLayers layers = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
-    EmitCs([
-      cDstImage  = dstImage,
-      cSrcImage  = pSrcTexture->GetImage(),
-      cDstLayers = layers,
-      cSrcLayers = layers
-    ] (DxvkContext* ctx) {
-      ctx->copyImage(
-        cDstImage, cDstLayers, VkOffset3D { 0, 0, 0 },
-        cSrcImage, cSrcLayers, VkOffset3D { 0, 0, 0 },
-        cDstImage->mipLevelExtent(cDstLayers.mipLevel));
-    });
+
+    VkImageBlit blitInfo;
+    blitInfo.dstSubresource = layers;
+    blitInfo.srcSubresource = layers;
+
+    blitInfo.dstOffsets[0] = { 0, 0, 0 };
+    blitInfo.dstOffsets[1] = VkOffset3D{ int32_t(dstExtent.width), int32_t(dstExtent.height), 1 };
+
+    blitInfo.srcOffsets[0] = { 0, 0, 0 };
+    blitInfo.srcOffsets[1] = VkOffset3D{ int32_t(srcExtent.width), int32_t(srcExtent.height), 1 };
+
+    if (unlikely(IsBlitRegionInvalid(blitInfo.srcOffsets, srcExtent)))
+      return D3DERR_INVALIDCALL;
+
+    if (unlikely(IsBlitRegionInvalid(blitInfo.dstOffsets, dstExtent)))
+      return D3DERR_INVALIDCALL;
+
+    VkExtent3D srcCopyExtent =
+    { uint32_t(blitInfo.srcOffsets[1].x - blitInfo.srcOffsets[0].x),
+      uint32_t(blitInfo.srcOffsets[1].y - blitInfo.srcOffsets[0].y),
+      uint32_t(blitInfo.srcOffsets[1].z - blitInfo.srcOffsets[0].z) };
+
+    VkExtent3D dstCopyExtent =
+    { uint32_t(blitInfo.dstOffsets[1].x - blitInfo.dstOffsets[0].x),
+      uint32_t(blitInfo.dstOffsets[1].y - blitInfo.dstOffsets[0].y),
+      uint32_t(blitInfo.dstOffsets[1].z - blitInfo.dstOffsets[0].z) };
+
+    // Copies would only work if the extents match. (ie. no stretching)
+    bool stretch = srcCopyExtent != dstCopyExtent;
+    fastPath &= !stretch;
+
+    if (!fastPath || needsResolve) {
+      // Compressed destination formats are forbidden for blits.
+      if (dstFormatInfo->flags.test(DxvkFormatFlag::BlockCompressed))
+        return D3DERR_INVALIDCALL;
+    }
+
+    auto EmitResolveCS = [&](const Rc<DxvkImage>& resolveDst, bool intermediate) {
+      VkImageResolve region;
+      region.srcSubresource = blitInfo.srcSubresource;
+      region.srcOffset      = blitInfo.srcOffsets[0];
+      region.dstSubresource = intermediate ? blitInfo.srcSubresource : blitInfo.dstSubresource;
+      region.dstOffset      = intermediate ? blitInfo.srcOffsets[0]  : blitInfo.dstOffsets[0];
+      region.extent         = srcCopyExtent;
+
+      EmitCs([
+        cDstImage = resolveDst,
+        cSrcImage = srcImage,
+        cRegion   = region
+      ] (DxvkContext* ctx) {
+        if (cRegion.srcSubresource.aspectMask != (VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT)) {
+          ctx->resolveImage(
+            cDstImage, cSrcImage, cRegion,
+            VK_FORMAT_UNDEFINED);
+        }
+        else {
+          ctx->resolveDepthStencilImage(
+            cDstImage, cSrcImage, cRegion,
+            VK_RESOLVE_MODE_AVERAGE_BIT,
+            VK_RESOLVE_MODE_SAMPLE_ZERO_BIT);
+        }
+      });
+    };
+
+    if (fastPath) {
+      if (needsResolve) {
+        EmitResolveCS(dstImage, false);
+      } else {
+        EmitCs([
+          cDstImage  = dstImage,
+          cSrcImage  = srcImage,
+          cDstLayers = blitInfo.dstSubresource,
+          cSrcLayers = blitInfo.srcSubresource,
+          cDstOffset = blitInfo.dstOffsets[0],
+          cSrcOffset = blitInfo.srcOffsets[0],
+          cExtent    = srcCopyExtent
+        ] (DxvkContext* ctx) {
+          ctx->copyImage(
+            cDstImage, cDstLayers, cDstOffset,
+            cSrcImage, cSrcLayers, cSrcOffset,
+            cExtent);
+        });
+      }
+    }
+    else {
+      if (needsResolve) {
+        auto resolveSrc = pSrcTexture->GetResolveImage();
+
+        EmitResolveCS(resolveSrc, true);
+        srcImage = resolveSrc;
+      }
+
+      auto swizzle = pSrcTexture->GetMapping().Swizzle;
+
+      EmitCs([
+        cDstImage = dstImage,
+        cDstMap   = swizzle,
+        cSrcImage = srcImage,
+        cSrcMap   = swizzle,
+        cBlitInfo = blitInfo,
+        cFilter   = VK_FILTER_LINEAR
+      ] (DxvkContext* ctx) {
+        ctx->blitImage(
+          cDstImage,
+          cDstMap,
+          cSrcImage,
+          cSrcMap,
+          cBlitInfo,
+          cFilter);
+      });
+    }
+
+    return D3D_OK;
   }
 
   void D3D9DeviceEx::UpdateTextureFromBuffer(

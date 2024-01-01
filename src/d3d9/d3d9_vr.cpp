@@ -39,7 +39,7 @@ public:
       return D3DERR_INVALIDCALL;
 
     D3D9Surface* surface = static_cast<D3D9Surface*>(pSurface);
-    const auto* tex = surface->GetCommonTexture();
+    auto* tex = surface->GetCommonTexture();
     const auto& device = tex->Device();
     const auto& dxvkdev = device->GetDXVKDevice();
     DxvkImageCreateInfo info;
@@ -57,8 +57,7 @@ public:
     info.shared = VK_FALSE;
 
     auto dstImg = Rc(new DxvkImage(device->GetDXVKDevice().ptr(), info, dst, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT));
-    device->CopyTextureToVkImage(tex, dstImg);
-    return S_OK;
+    return device->CopyTextureToVkImage(tex, dstImg);
   }
 
   HRESULT STDMETHODCALLTYPE GetVRDesc(IDirect3DSurface9* pSurface,
