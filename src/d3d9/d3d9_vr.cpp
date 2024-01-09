@@ -147,7 +147,7 @@ public:
 
   HRESULT STDMETHODCALLTYPE BeginVRSubmit()
   {
-    m_device->Flush();
+    // m_device->Flush();
     m_device->SynchronizeCsThread(DxvkCsThread::SynchronizeAll);
     m_device->GetDXVKDevice()->lockSubmission();
 
@@ -157,7 +157,6 @@ public:
   HRESULT STDMETHODCALLTYPE EndVRSubmit()
   {
     m_device->GetDXVKDevice()->unlockSubmission();
-
     return D3D_OK;
   }
 
