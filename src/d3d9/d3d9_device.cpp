@@ -4758,8 +4758,6 @@ namespace dxvk {
     D3D9CommonTexture* pSrcTexture,
     Rc<DxvkImage> dstImage) {
 
-    WaitStagingBuffer(); // TODO: Needed?
-
     bool fastPath = true;
 
     Rc<DxvkImage> srcImage = pSrcTexture->GetImage();
