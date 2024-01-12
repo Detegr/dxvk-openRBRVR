@@ -49,12 +49,14 @@ public:
     info.extent = { dstWidth, dstHeight, 1 };
     info.numLayers = 1;
     info.mipLevels = 1;
-    info.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-    info.stages = VK_PIPELINE_STAGE_TRANSFER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | dxvkdev->getShaderPipelineStages();
-    info.access = VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_TRANSFER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_READ_BIT  | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    info.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    info.stages = VK_PIPELINE_STAGE_TRANSFER_BIT;
+    info.access = VK_ACCESS_TRANSFER_WRITE_BIT;
     info.tiling = VK_IMAGE_TILING_OPTIMAL;
-    info.layout = VK_IMAGE_LAYOUT_GENERAL;
+    info.layout = VK_IMAGE_LAYOUT_UNDEFINED;
     info.shared = VK_FALSE;
+    info.viewFormats = reinterpret_cast<VkFormat*>(&format);
+    info.viewFormatCount = 1;
 
     auto dstImg = Rc(new DxvkImage(device->GetDXVKDevice().ptr(), info, dst, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT));
     return device->CopyTextureToVkImage(tex, dstImg);
