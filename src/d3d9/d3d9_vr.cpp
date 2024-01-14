@@ -162,6 +162,13 @@ public:
     return D3D_OK;
   }
 
+  HRESULT STDMETHODCALLTYPE Flush()
+  {
+    m_device->Flush();
+    m_device->SynchronizeCsThread(DxvkCsThread::SynchronizeAll);
+    return D3D_OK;
+  }
+
   HRESULT STDMETHODCALLTYPE
   GetOXRVkDeviceDesc(OXR_VK_DEVICE_DESC* vkDeviceDescOut)
   {

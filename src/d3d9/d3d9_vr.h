@@ -54,6 +54,7 @@ IDirect3DVR9 : public IUnknown
                                                        vkDeviceDescOut) = 0;
 
   virtual HRESULT STDMETHODCALLTYPE CopySurfaceToVulkanImage(IDirect3DSurface9 * pSurface, VkImage dst, int64_t format, uint32_t dstWidth, uint32_t dstHeight) = 0;
+  virtual HRESULT STDMETHODCALLTYPE Flush() = 0;
 };
 
 #ifdef _MSC_VER
