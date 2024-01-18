@@ -169,6 +169,18 @@ public:
     return D3D_OK;
   }
 
+  HRESULT STDMETHODCALLTYPE LockSubmissionQueue()
+  {
+    m_device->GetDXVKDevice()->lockSubmission();
+    return D3D_OK;
+  }
+
+  HRESULT STDMETHODCALLTYPE UnlockSubmissionQueue()
+  {
+    m_device->GetDXVKDevice()->unlockSubmission();
+    return D3D_OK;
+  }
+
   HRESULT STDMETHODCALLTYPE
   GetOXRVkDeviceDesc(OXR_VK_DEVICE_DESC* vkDeviceDescOut)
   {
