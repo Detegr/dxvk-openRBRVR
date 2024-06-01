@@ -36,7 +36,12 @@ namespace dxvk {
     m_extProviders.push_back(&DxvkPlatformExts::s_instance);
 #ifdef _WIN32
     m_extProviders.push_back(&VrInstance::s_instance);
-    m_extProviders.push_back(&DxvkXrProvider::s_instance);
+
+    // DxvkXrProvider is used to query OpenXR extensions
+    // As we're now using XR_KHR_vulkan_enable2, we don't need
+    // to query the extensions anymore, and can get rid of DxvkXrProvider completely
+
+    // m_extProviders.push_back(&DxvkXrProvider::s_instance);
 #endif
 
     Logger::info("Built-in extension providers:");
@@ -186,7 +191,17 @@ namespace dxvk {
       info.enabledExtensionCount    = extensionList.count();
       info.ppEnabledExtensionNames  = extensionList.names();
 
-      VkResult status = m_vkl->vkCreateInstance(&info, nullptr, &instance);
+      VkResult status = VK_RESULT_MAX_ENUM;
+      if (auto openrbrvr = GetModuleHandle("Plugins\\openRBRVR.dll"); openrbrvr)
+      {
+        using createInstanceFn = VkResult (*)(VkInstanceCreateInfo*, PFN_vkGetInstanceProcAddr, VkInstance*);
+        auto createInstance = reinterpret_cast<createInstanceFn>(GetProcAddress(openrbrvr, "CreateVulkanInstance"));
+        status = createInstance(&info, m_vkl->getLoaderProc(), &instance);
+      }
+
+      if (status != VK_SUCCESS) {
+        status = m_vkl->vkCreateInstance(&info, nullptr, &instance);
+      }
 
       if (status != VK_SUCCESS)
         throw DxvkError("DxvkInstance::createInstance: Failed to create Vulkan 1.1 instance");
