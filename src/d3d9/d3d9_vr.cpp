@@ -198,9 +198,24 @@ public:
     return D3D_OK;
   }
 
+  HRESULT STDMETHODCALLTYPE ImportFence(HANDLE handle, uint64_t value)
+  {
+    const DxvkFenceCreateInfo fenceInfo = { value, VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_D3D11_FENCE_BIT, handle };
+    m_fence = m_device->GetDXVKDevice()->createFence(fenceInfo);
+
+    return D3D_OK;
+  }
+
+  HRESULT STDMETHODCALLTYPE SignalFence(uint64_t value)
+  {
+      m_fence->signal(value);
+      return D3D_OK;
+  }
+
 private:
   D3D9DeviceEx* m_device;
   D3D9DeviceLock m_lock;
+  Rc<DxvkFence> m_fence;
 };
 
 }

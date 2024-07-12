@@ -97,6 +97,8 @@ namespace dxvk {
     */
     void wait(uint64_t value);
 
+    void signal(uint64_t value);
+
   private:
 
     struct QueueItem {
@@ -115,6 +117,7 @@ namespace dxvk {
       bool operator >= (const QueueItem& item) const { return value >= item.value; }
     };
 
+    DxvkDevice*                     m_device;
     Rc<vk::DeviceFn>                m_vkd;
     DxvkFenceCreateInfo             m_info;
     VkSemaphore                     m_semaphore;

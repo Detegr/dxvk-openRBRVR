@@ -57,6 +57,9 @@ IDirect3DVR9 : public IUnknown
   virtual HRESULT STDMETHODCALLTYPE Flush() = 0;
   virtual HRESULT STDMETHODCALLTYPE LockSubmissionQueue() = 0;
   virtual HRESULT STDMETHODCALLTYPE UnlockSubmissionQueue() = 0;
+
+  virtual HRESULT STDMETHODCALLTYPE ImportFence(HANDLE handle, uint64_t value) = 0;
+  virtual HRESULT STDMETHODCALLTYPE SignalFence(uint64_t value) = 0;
 };
 
 #ifdef _MSC_VER
