@@ -468,17 +468,7 @@ namespace dxvk {
       overallocInfo.pNext = std::exchange(info.pNext, &overallocInfo);
     
     VkDevice device = VK_NULL_HANDLE;
-    VkResult vr = VK_RESULT_MAX_ENUM;
-    if (auto openrbrvr = GetModuleHandle("Plugins\\openRBRVR.dll"); openrbrvr)
-    {
-      using createDeviceFn = VkResult (*)(VkPhysicalDevice, VkDeviceCreateInfo*, PFN_vkGetInstanceProcAddr, VkDevice*);
-      auto createDevice = reinterpret_cast<createDeviceFn>(GetProcAddress(openrbrvr, "CreateVulkanDevice"));
-      vr = createDevice(m_handle, &info, m_vki->getLoaderProc(), &device);
-    }
-
-    if (vr != VK_SUCCESS) {
-      vr = m_vki->vkCreateDevice(m_handle, &info, nullptr, &device);
-    }
+    VkResult vr = m_vki->vkCreateDevice(m_handle, &info, nullptr, &device);
 
     if (vr != VK_SUCCESS && enableCudaInterop) {
       // Enabling certain Vulkan extensions can cause device creation to fail on

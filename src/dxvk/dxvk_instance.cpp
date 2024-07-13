@@ -36,7 +36,6 @@ namespace dxvk {
     m_extProviders.push_back(&DxvkPlatformExts::s_instance);
 #ifdef _WIN32
     m_extProviders.push_back(&VrInstance::s_instance);
-
     // We don't need DxvkXrProvider anymore as it's just for querying Vulkan extensions
     // m_extProviders.push_back(&DxvkXrProvider::s_instance);
 #endif
@@ -188,17 +187,7 @@ namespace dxvk {
       info.enabledExtensionCount    = extensionList.count();
       info.ppEnabledExtensionNames  = extensionList.names();
 
-      VkResult status = VK_RESULT_MAX_ENUM;
-      if (auto openrbrvr = GetModuleHandle("Plugins\\openRBRVR.dll"); openrbrvr)
-      {
-        using createInstanceFn = VkResult (*)(VkInstanceCreateInfo*, PFN_vkGetInstanceProcAddr, VkInstance*);
-        auto createInstance = reinterpret_cast<createInstanceFn>(GetProcAddress(openrbrvr, "CreateVulkanInstance"));
-        status = createInstance(&info, m_vkl->getLoaderProc(), &instance);
-      }
-
-      if (status != VK_SUCCESS) {
-        status = m_vkl->vkCreateInstance(&info, nullptr, &instance);
-      }
+      VkResult status = m_vkl->vkCreateInstance(&info, nullptr, &instance);
 
       if (status != VK_SUCCESS)
         throw DxvkError("DxvkInstance::createInstance: Failed to create Vulkan 1.1 instance");
