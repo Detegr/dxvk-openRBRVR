@@ -212,6 +212,29 @@ public:
       return D3D_OK;
   }
 
+  void STDMETHODCALLTYPE StartCommandRecording()
+  {
+      m_device->m_csThread.startStoringChunks();
+  }
+
+  void STDMETHODCALLTYPE StopCommandRecording()
+  {
+      m_device->m_csThread.stopStoringChunks();
+  }
+
+  void STDMETHODCALLTYPE ExecuteRecordedCommands()
+  {
+      uint64_t lastChunk = m_device->m_csThread.executeStoredChunks();
+      if (m_device->m_csSeqNum < lastChunk) {
+        m_device->m_csSeqNum = lastChunk;
+      }
+  }
+
+  void STDMETHODCALLTYPE ClearRecordedCommands()
+  {
+      m_device->m_csThread.clearStoredChunks();
+  }
+
 private:
   D3D9DeviceEx* m_device;
   D3D9DeviceLock m_lock;

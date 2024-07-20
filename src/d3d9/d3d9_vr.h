@@ -60,6 +60,11 @@ IDirect3DVR9 : public IUnknown
 
   virtual HRESULT STDMETHODCALLTYPE ImportFence(HANDLE handle, uint64_t value) = 0;
   virtual HRESULT STDMETHODCALLTYPE SignalFence(uint64_t value) = 0;
+
+  virtual void STDMETHODCALLTYPE    StartCommandRecording()     = 0;
+  virtual void STDMETHODCALLTYPE    StopCommandRecording()      = 0;
+  virtual void STDMETHODCALLTYPE    ExecuteRecordedCommands()   = 0;
+  virtual void STDMETHODCALLTYPE    ClearRecordedCommands()     = 0;
 };
 
 #ifdef _MSC_VER
