@@ -125,7 +125,30 @@ namespace dxvk {
     m_condOnAdd.notify_one();
     return seq;
   }
-  
+
+  void DxvkCsThread::clearStoredChunks() {
+    std::lock_guard<dxvk::mutex> lock(m_mutex);
+    for (auto& chunk : m_chunksStored) {
+      chunk->reset();
+      chunk = DxvkCsChunkRef();
+    }
+    m_chunksStored.clear();
+  }
+
+  uint64_t DxvkCsThread::executeStoredChunks() {
+    uint64_t seq     = 0;
+    uint64_t lastSeq = 0;
+
+    std::lock_guard<dxvk::mutex> lock(m_mutex);
+    for (auto& chunk : m_chunksStored) {
+      seq = dispatchChunk(std::move(chunk));
+      if (seq > lastSeq) {
+        lastSeq = seq;
+      }
+    }
+
+    return lastSeq;
+  }
   
   void DxvkCsThread::synchronize(uint64_t seq) {
     // Avoid locking if we know the sync is a no-op, may
@@ -171,6 +194,11 @@ namespace dxvk {
           });
 
           std::swap(chunks, m_chunksQueued);
+
+          if (m_storingChunks) {
+            m_chunksStored.insert(m_chunksStored.begin(), chunks.cbegin(),
+                chunks.cend());
+          }
         }
 
         for (auto& chunk : chunks) {

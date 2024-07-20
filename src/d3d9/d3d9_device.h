@@ -994,10 +994,13 @@ namespace dxvk {
       return m_behaviorFlags & D3DCREATE_SOFTWARE_VERTEXPROCESSING;
     }
 
-  private:
+    friend class D3D9VR;
 
+  private:
     DxvkCsChunkRef AllocCsChunk() {
-      DxvkCsChunk* chunk = m_csChunkPool.allocChunk(DxvkCsChunkFlag::SingleUse);
+      DxvkCsChunk* chunk = m_csChunkPool.allocChunk(
+          m_csThread.isStoringChunks() ? DxvkCsChunkFlag::MultiUse
+                                       : DxvkCsChunkFlag::SingleUse);
       return DxvkCsChunkRef(chunk, &m_csChunkPool);
     }
 

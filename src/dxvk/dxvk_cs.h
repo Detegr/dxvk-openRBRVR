@@ -127,6 +127,9 @@ namespace dxvk {
     /// Indicates that the submitted chunk will
     /// no longer be needed after one submission.
     SingleUse,
+    /// Indicates that the submitted chunk
+    /// can be submitted to the GPU multiple times.
+    MultiUse,
   };
 
   using DxvkCsChunkFlags = Flags<DxvkCsChunkFlag>;
@@ -420,6 +423,39 @@ namespace dxvk {
       return m_chunksExecuted.load();
     }
 
+    /**
+     * Starts storing chunks for reuse.
+     * Must be ended with stopStoringChunks().
+     */
+    void startStoringChunks() {
+      m_storingChunks.store(true);
+    }
+
+    /**
+     * Stops storing chunks for reuse.
+     * No-op if startStoringChunks() has not been called earlier.
+     */
+    void stopStoringChunks() {
+      m_storingChunks.store(false);
+    }
+
+    /**
+     * Executes stored chunks that were collected between
+     * startStoringChunks() and endStoringChunks().
+     *
+     * Must be called when not storing chunks.
+     */
+    uint64_t executeStoredChunks();
+
+    void clearStoredChunks();
+
+    /**
+     * Returns wheter chunks are being stored.
+     */
+    bool isStoringChunks() const {
+      return m_storingChunks.load();
+    }
+
   private:
     
     Rc<DxvkDevice>              m_device;
@@ -438,6 +474,8 @@ namespace dxvk {
     
     void threadFunc();
     
+    std::atomic<bool>           m_storingChunks;
+    std::vector<DxvkCsChunkRef> m_chunksStored;
   };
   
 }
