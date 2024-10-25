@@ -195,7 +195,7 @@ namespace dxvk {
      * \param [in] frameRate Target frame rate. Set
      *    to 0 in order to disable the limiter.
      */
-    void setFrameRateLimit(double frameRate);
+    void setFrameRateLimit(double frameRate, uint32_t maxLatency);
 
     /**
      * \brief Checks whether a Vulkan swap chain exists
@@ -293,9 +293,6 @@ namespace dxvk {
     void destroySwapchain();
 
     void destroySurface();
-
-    void applyFrameRateLimit(
-            VkPresentModeKHR          mode);
 
     void runFrameThread();
 

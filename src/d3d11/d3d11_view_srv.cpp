@@ -43,6 +43,7 @@ namespace dxvk {
 
       // Fill in buffer view info
       DxvkBufferViewCreateInfo viewInfo;
+      viewInfo.usage = VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT;
 
       if (bufInfo.Flags & D3D11_BUFFEREX_SRV_FLAG_RAW) {
         // Raw buffer view. We'll represent this as a
@@ -183,6 +184,7 @@ namespace dxvk {
   
   D3D11ShaderResourceView::~D3D11ShaderResourceView() {
     ResourceReleasePrivate(m_resource);
+    m_resource = nullptr;
   }
   
   
@@ -298,7 +300,7 @@ namespace dxvk {
         D3D11_BUFFER_DESC bufferDesc;
         static_cast<D3D11Buffer*>(pResource)->GetDesc(&bufferDesc);
         
-        if (bufferDesc.MiscFlags == D3D11_RESOURCE_MISC_BUFFER_STRUCTURED) {
+        if (bufferDesc.MiscFlags & D3D11_RESOURCE_MISC_BUFFER_STRUCTURED) {
           pDesc->Format              = DXGI_FORMAT_UNKNOWN;
           pDesc->ViewDimension       = D3D11_SRV_DIMENSION_BUFFER;
           pDesc->Buffer.FirstElement = 0;

@@ -205,13 +205,16 @@ namespace dxvk {
     void CreateRenderTargetViews();
 
     HRESULT CreateBackBuffers(
-            uint32_t            NumBackBuffers);
+            uint32_t            NumBackBuffers,
+            DWORD               Flags);
 
     void CreateBlitter();
 
     void CreateHud();
 
     void InitRamp();
+
+    void UpdateTargetFrameRate(uint32_t SyncInterval);
 
     uint32_t GetActualFrameLatency();
 

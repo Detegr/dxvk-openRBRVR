@@ -183,14 +183,17 @@ namespace dxvk::hud {
     vsInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
     vsInfo.bindingCount = vsBindings.size();
     vsInfo.bindings = vsBindings.data();
-    vsInfo.outputMask = 0x3;
+    vsInfo.pushConstStages = VK_SHADER_STAGE_VERTEX_BIT;
     vsInfo.pushConstSize = sizeof(HudTextPushConstants);
+    vsInfo.outputMask = 0x3;
     result.vert = new DxvkShader(vsInfo, std::move(vsCode));
 
     DxvkShaderCreateInfo fsInfo;
     fsInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
     fsInfo.bindingCount = fsBindings.size();
     fsInfo.bindings = fsBindings.data();
+    fsInfo.pushConstStages = VK_SHADER_STAGE_VERTEX_BIT;
+    fsInfo.pushConstSize = sizeof(HudTextPushConstants);
     fsInfo.inputMask = 0x3;
     fsInfo.outputMask = 0x1;
     result.frag = new DxvkShader(fsInfo, std::move(fsCode));
@@ -212,6 +215,7 @@ namespace dxvk::hud {
     DxvkShaderCreateInfo vsInfo;
     vsInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
     vsInfo.outputMask = 0x1;
+    vsInfo.pushConstStages = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
     vsInfo.pushConstSize = sizeof(HudGraphPushConstants);
     result.vert = new DxvkShader(vsInfo, std::move(vsCode));
     
@@ -221,6 +225,7 @@ namespace dxvk::hud {
     fsInfo.bindings = fsBindings.data();
     fsInfo.inputMask = 0x1;
     fsInfo.outputMask = 0x1;
+    fsInfo.pushConstStages = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
     fsInfo.pushConstSize = sizeof(HudGraphPushConstants);
     result.frag = new DxvkShader(fsInfo, std::move(fsCode));
     
@@ -246,9 +251,10 @@ namespace dxvk::hud {
 
   Rc<DxvkBufferView> HudRenderer::createDataView() {
     DxvkBufferViewCreateInfo info;
-    info.format = VK_FORMAT_R8_UINT;
-    info.rangeOffset = 0;
-    info.rangeLength = m_dataBuffer->info().size;
+    info.format         = VK_FORMAT_R8_UINT;
+    info.rangeOffset    = 0;
+    info.rangeLength    = m_dataBuffer->info().size;
+    info.usage          = VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT;
 
     return m_device->createBufferView(m_dataBuffer, info);
   }
@@ -273,6 +279,7 @@ namespace dxvk::hud {
     info.format         = VK_FORMAT_UNDEFINED;
     info.rangeOffset    = 0;
     info.rangeLength    = m_fontBuffer->info().size;
+    info.usage          = VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT;
 
     return m_device->createBufferView(m_fontBuffer, info);
   }

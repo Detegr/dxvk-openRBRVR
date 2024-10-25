@@ -31,11 +31,12 @@ namespace dxvk {
       AddDirtyBox(nullptr, i);
     }
 
-    if (m_desc.Pool != D3DPOOL_DEFAULT) {
+    if (m_desc.Pool != D3DPOOL_DEFAULT && pSharedHandle) {
+      throw DxvkError("D3D9: Incompatible pool type for texture sharing.");
+    }
+
+    if (IsPoolManaged(m_desc.Pool)) {
       SetAllNeedUpload();
-      if (pSharedHandle) {
-        throw DxvkError("D3D9: Incompatible pool type for texture sharing.");
-      }
     }
 
     m_mapping = pDevice->LookupFormat(m_desc.Format);
@@ -71,7 +72,8 @@ namespace dxvk {
         ExportImageInfo();
       }
 
-      CreateSampleView(0);
+      if ((m_image->info().usage & VK_IMAGE_USAGE_SAMPLED_BIT) != 0)
+        CreateSampleView(0);
 
       if (!IsManaged()) {
         m_size = m_image->memory().length();
@@ -117,6 +119,7 @@ namespace dxvk {
 
   HRESULT D3D9CommonTexture::NormalizeTextureProperties(
           D3D9DeviceEx*             pDevice,
+          D3DRESOURCETYPE           ResourceType,
           D3D9_COMMON_TEXTURE_DESC* pDesc) {
     auto* options = pDevice->GetOptions();
 
@@ -128,6 +131,11 @@ namespace dxvk {
     if (pDesc->Format == D3D9Format::A8       &&
        (pDesc->Usage & D3DUSAGE_RENDERTARGET) &&
         options->disableA8RT)
+      return D3DERR_INVALIDCALL;
+
+    // Cube textures with depth formats are not supported on any native
+    // driver, and allowing them triggers a broken code path in Gothic 3.
+    if (ResourceType == D3DRTYPE_CUBETEXTURE && mapping.Aspect != VK_IMAGE_ASPECT_COLOR_BIT)
       return D3DERR_INVALIDCALL;
 
     // If the mapping is invalid then lets return invalid
@@ -177,6 +185,17 @@ namespace dxvk {
     if (pDesc->MipLevels == 0 || pDesc->MipLevels > maxMipLevelCount)
       pDesc->MipLevels = maxMipLevelCount;
 
+    if (unlikely(pDesc->Discard)) {
+      if (!IsDepthStencilFormat(pDesc->Format))
+        return D3DERR_INVALIDCALL;
+
+      if (pDesc->Format == D3D9Format::D32_LOCKABLE
+        || pDesc->Format == D3D9Format::D32F_LOCKABLE
+        || pDesc->Format == D3D9Format::D16_LOCKABLE
+        || pDesc->Format == D3D9Format::S8_LOCKABLE)
+        return D3DERR_INVALIDCALL;
+    }
+
     return D3D_OK;
   }
 
@@ -187,6 +206,8 @@ namespace dxvk {
 
     m_data.Map();
     uint8_t* ptr = reinterpret_cast<uint8_t*>(m_data.Ptr());
+    if (ptr == nullptr)
+      return nullptr;
     ptr += m_memoryOffset[Subresource];
     return ptr;
   }
@@ -275,8 +296,7 @@ namespace dxvk {
     imageInfo.numLayers       = m_desc.ArraySize;
     imageInfo.mipLevels       = m_desc.MipLevels;
     imageInfo.usage           = VK_IMAGE_USAGE_TRANSFER_SRC_BIT
-                              | VK_IMAGE_USAGE_TRANSFER_DST_BIT
-                              | VK_IMAGE_USAGE_SAMPLED_BIT;
+                              | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
     imageInfo.stages          = VK_PIPELINE_STAGE_TRANSFER_BIT
                               | m_device->GetEnabledShaderStages();
     imageInfo.access          = VK_ACCESS_TRANSFER_READ_BIT
@@ -302,6 +322,9 @@ namespace dxvk {
     }
 
     DecodeMultiSampleType(m_device->GetDXVKDevice(), m_desc.MultiSample, m_desc.MultisampleQuality, &imageInfo.sampleCount);
+
+    if (!m_desc.IsAttachmentOnly)
+      imageInfo.usage |= VK_IMAGE_USAGE_SAMPLED_BIT;
 
     // The image must be marked as mutable if it can be reinterpreted
     // by a view with a different format. Depth-stencil formats cannot
@@ -360,7 +383,7 @@ namespace dxvk {
     // For some formats, we need to enable render target
     // capabilities if available, but these should
     // in no way affect the default image layout
-    imageInfo.usage |= EnableMetaCopyUsage(imageInfo.format, imageInfo.tiling);
+    imageInfo.usage |= EnableMetaCopyUsage(imageInfo.format, imageInfo.tiling, imageInfo.sampleCount);
 
     // Check if we can actually create the image
     if (!CheckImageSupport(&imageInfo, imageInfo.tiling)) {
@@ -437,7 +460,8 @@ namespace dxvk {
 
   VkImageUsageFlags D3D9CommonTexture::EnableMetaCopyUsage(
           VkFormat              Format,
-          VkImageTiling         Tiling) const {
+          VkImageTiling         Tiling,
+          VkSampleCountFlags    SampleCount) const {
     VkFormatFeatureFlags2 requestedFeatures = 0;
 
     if (Format == VK_FORMAT_D16_UNORM || Format == VK_FORMAT_D32_SFLOAT)
@@ -445,6 +469,12 @@ namespace dxvk {
 
     if (Format == VK_FORMAT_R16_UNORM || Format == VK_FORMAT_R32_SFLOAT)
       requestedFeatures |=  VK_FORMAT_FEATURE_2_COLOR_ATTACHMENT_BIT;
+
+    // We need SAMPLED_BIT for StretchRect.
+    // However, StretchRect does not allow stretching for DS formats,
+    // so unless we need to resolve, it should always hit code paths that only need TRANSFER_BIT.
+    if (!IsDepthStencilFormat(m_desc.Format) || SampleCount != VK_SAMPLE_COUNT_1_BIT)
+      requestedFeatures |= VK_FORMAT_FEATURE_2_SAMPLED_IMAGE_BIT;
 
     if (!requestedFeatures)
       return 0;
@@ -455,12 +485,15 @@ namespace dxvk {
     requestedFeatures &= Tiling == VK_IMAGE_TILING_OPTIMAL
       ? properties.optimal
       : properties.linear;
-    
+
     VkImageUsageFlags requestedUsage = 0;
-    
+
+    if (requestedFeatures & VK_FORMAT_FEATURE_2_SAMPLED_IMAGE_BIT)
+      requestedUsage |= VK_IMAGE_USAGE_SAMPLED_BIT;
+
     if (requestedFeatures & VK_FORMAT_FEATURE_2_DEPTH_STENCIL_ATTACHMENT_BIT)
       requestedUsage |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-    
+
     if (requestedFeatures & VK_FORMAT_FEATURE_2_COLOR_ATTACHMENT_BIT)
       requestedUsage |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 
@@ -503,11 +536,6 @@ namespace dxvk {
     Usage &= ~(VK_IMAGE_USAGE_TRANSFER_DST_BIT
              | VK_IMAGE_USAGE_TRANSFER_SRC_BIT
              | VK_IMAGE_USAGE_ATTACHMENT_FEEDBACK_LOOP_BIT_EXT);
-    
-    // Ignore sampled bit in case the image was created with
-    // an image flag that only allows attachment usage
-    if (m_desc.IsAttachmentOnly)
-      Usage &= ~VK_IMAGE_USAGE_SAMPLED_BIT;
 
     // If the image is used only as an attachment, we never
     // have to transform the image back to a different layout

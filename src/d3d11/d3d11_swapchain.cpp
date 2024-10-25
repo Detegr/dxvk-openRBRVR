@@ -99,7 +99,8 @@ namespace dxvk {
 
     if (riid == __uuidof(IUnknown)
      || riid == __uuidof(IDXGIVkSwapChain)
-     || riid == __uuidof(IDXGIVkSwapChain1)) {
+     || riid == __uuidof(IDXGIVkSwapChain1)
+     || riid == __uuidof(IDXGIVkSwapChain2)) {
       *ppvObject = ref(this);
       return S_OK;
     }
@@ -254,11 +255,6 @@ namespace dxvk {
           UINT                      SyncInterval,
           UINT                      PresentFlags,
     const DXGI_PRESENT_PARAMETERS*  pPresentParameters) {
-    auto options = m_parent->GetOptions();
-
-    if (options->syncInterval >= 0)
-      SyncInterval = options->syncInterval;
-
     if (!(PresentFlags & DXGI_PRESENT_TEST))
       m_dirty |= m_presenter->setSyncInterval(SyncInterval) != VK_SUCCESS;
 
@@ -352,6 +348,15 @@ namespace dxvk {
   }
 
 
+  void STDMETHODCALLTYPE D3D11SwapChain::SetTargetFrameRate(
+          double                    FrameRate) {
+    m_targetFrameRate = FrameRate;
+
+    if (m_presenter != nullptr)
+      m_presenter->setFrameRateLimit(m_targetFrameRate, GetActualFrameLatency());
+  }
+
+
   HRESULT D3D11SwapChain::PresentImage(UINT SyncInterval) {
     // Flush pending rendering commands before
     auto immediateContext = m_parent->GetContext();
@@ -372,7 +377,7 @@ namespace dxvk {
 
       VkResult status = m_presenter->acquireNextImage(sync, imageIndex);
 
-      while (status != VK_SUCCESS && status != VK_SUBOPTIMAL_KHR) {
+      while (status != VK_SUCCESS) {
         RecreateSwapChain();
 
         if (!m_presenter->hasSwapChain())
@@ -380,6 +385,9 @@ namespace dxvk {
         
         info = m_presenter->info();
         status = m_presenter->acquireNextImage(sync, imageIndex);
+
+        if (status == VK_SUBOPTIMAL_KHR)
+          break;
       }
 
       if (m_hdrMetadata && m_dirtyHdrMetadata) {
@@ -501,7 +509,7 @@ namespace dxvk {
     presenterDesc.fullScreenExclusive = PickFullscreenMode();
 
     m_presenter = new Presenter(m_device, m_frameLatencySignal, presenterDesc);
-    m_presenter->setFrameRateLimit(m_parent->GetOptions()->maxFrameRate);
+    m_presenter->setFrameRateLimit(m_targetFrameRate, GetActualFrameLatency());
   }
 
 

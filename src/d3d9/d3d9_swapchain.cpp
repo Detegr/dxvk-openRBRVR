@@ -45,7 +45,7 @@ namespace dxvk {
         RecreateSwapChain();
     }
 
-    if (FAILED(CreateBackBuffers(m_presentParams.BackBufferCount)))
+    if (FAILED(CreateBackBuffers(m_presentParams.BackBufferCount, m_presentParams.Flags)))
       throw DxvkError("D3D9: Failed to create swapchain backbuffers");
 
     CreateBlitter();
@@ -64,6 +64,16 @@ namespace dxvk {
     // in DxvkDevice::~DxvkDevice.
     if (this_thread::isInModuleDetachment())
       return;
+
+    {
+      // Locking here and in Device::GetFrontBufferData
+      // ensures that other threads don't accidentally access a stale pointer.
+      D3D9DeviceLock lock = m_parent->LockDevice();
+
+      if (m_parent->GetMostRecentlyUsedSwapchain() == this) {
+        m_parent->ResetMostRecentlyUsedSwapchain();
+      }
+    }
 
     DestroyBackBuffers();
 
@@ -112,6 +122,8 @@ namespace dxvk {
           DWORD    dwFlags) {
     D3D9DeviceLock lock = m_parent->LockDevice();
 
+    m_parent->SetMostRecentlyUsedSwapchain(this);
+
     if (unlikely(m_parent->IsDeviceLost()))
       return D3DERR_DEVICELOST;
 
@@ -147,6 +159,8 @@ namespace dxvk {
     bool recreate = false;
     recreate   |= m_wctx->presenter == nullptr;
     recreate   |= m_dialog != m_lastDialog;
+    if (options->deferSurfaceCreation)
+      recreate |= m_parent->IsDeviceReset();
 
     if (m_wctx->presenter != nullptr) {
       m_dirty  |= m_wctx->presenter->setSyncInterval(presentInterval) != VK_SUCCESS;
@@ -157,6 +171,9 @@ namespace dxvk {
     m_dirty    |= recreate;
 
     m_lastDialog = m_dialog;
+
+    if (m_window == nullptr)
+      return D3D_OK;
 
 #ifdef _WIN32
     const bool useGDIFallback = m_partialCopy && !HasFrontBuffer();
@@ -177,6 +194,7 @@ namespace dxvk {
       if (!m_wctx->presenter->hasSwapChain())
         return D3D_OK;
 
+      UpdateTargetFrameRate(presentInterval);
       PresentImage(presentInterval);
       return D3D_OK;
     } catch (const DxvkError& e) {
@@ -284,6 +302,7 @@ namespace dxvk {
       resolveInfo.mipLevels     = 1;
       resolveInfo.usage         = VK_IMAGE_USAGE_SAMPLED_BIT
                                 | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
+                                | VK_IMAGE_USAGE_TRANSFER_SRC_BIT
                                 | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
       resolveInfo.stages        = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT
                                 | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
@@ -339,6 +358,7 @@ namespace dxvk {
       blitCreateInfo.mipLevels     = 1;
       blitCreateInfo.usage         = VK_IMAGE_USAGE_SAMPLED_BIT
                                    | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
+                                   | VK_IMAGE_USAGE_TRANSFER_SRC_BIT
                                    | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
       blitCreateInfo.stages        = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT
                                    | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
@@ -379,6 +399,20 @@ namespace dxvk {
       blitInfo.dstOffsets[1] = VkOffset3D{ int32_t(srcExtent.width),  int32_t(srcExtent.height),  1 };
       blitInfo.srcOffsets[0] = VkOffset3D{ 0, 0, 0 };
       blitInfo.srcOffsets[1] = VkOffset3D{ int32_t(srcExtent.width),  int32_t(srcExtent.height),  1 };
+
+#ifdef _WIN32
+      if (m_presentParams.Windowed) {
+        // In windowed mode, GetFrontBufferData takes a screenshot of the entire screen.
+        // So place the copy of the front buffer at the position of the window.
+        POINT point = { 0, 0 };
+        if (ClientToScreen(m_window, &point) != 0) {
+          blitInfo.dstOffsets[0].x = point.x;
+          blitInfo.dstOffsets[0].y = point.y;
+          blitInfo.dstOffsets[1].x += point.x;
+          blitInfo.dstOffsets[1].y += point.y;
+        }
+      }
+#endif
 
       m_parent->EmitCs([
         cDstImage = blittedSrc,
@@ -595,7 +629,7 @@ namespace dxvk {
     if (changeFullscreen)
       SetGammaRamp(0, &m_ramp);
 
-    hr = CreateBackBuffers(m_presentParams.BackBufferCount);
+    hr = CreateBackBuffers(m_presentParams.BackBufferCount, m_presentParams.Flags);
     if (FAILED(hr))
       return hr;
 
@@ -767,11 +801,14 @@ namespace dxvk {
 
       VkResult status = m_wctx->presenter->acquireNextImage(sync, imageIndex);
 
-      while (status != VK_SUCCESS && status != VK_SUBOPTIMAL_KHR) {
+      while (status != VK_SUCCESS) {
         RecreateSwapChain();
         
         info = m_wctx->presenter->info();
         status = m_wctx->presenter->acquireNextImage(sync, imageIndex);
+
+        if (status == VK_SUBOPTIMAL_KHR)
+          break;
       }
 
       if (m_hdrMetadata && m_dirtyHdrMetadata) {
@@ -899,7 +936,6 @@ namespace dxvk {
     presenterDesc.fullScreenExclusive = PickFullscreenMode();
 
     m_wctx->presenter = new Presenter(m_device, m_wctx->frameLatencySignal, presenterDesc);
-    m_wctx->presenter->setFrameRateLimit(m_parent->GetOptions()->maxFrameRate);
   }
 
 
@@ -966,6 +1002,9 @@ namespace dxvk {
 
 
   void D3D9SwapChainEx::UpdateWindowCtx() {
+    if (m_window == nullptr)
+      return;
+
     if (!m_presenters.count(m_window)) {
       auto res = m_presenters.emplace(
         std::piecewise_construct,
@@ -979,7 +1018,7 @@ namespace dxvk {
   }
 
 
-  HRESULT D3D9SwapChainEx::CreateBackBuffers(uint32_t NumBackBuffers) {
+  HRESULT D3D9SwapChainEx::CreateBackBuffers(uint32_t NumBackBuffers, DWORD Flags) {
     // Explicitly destroy current swap image before
     // creating a new one to free up resources
     DestroyBackBuffers();
@@ -1004,8 +1043,9 @@ namespace dxvk {
     desc.Discard            = FALSE;
     desc.IsBackBuffer       = TRUE;
     desc.IsAttachmentOnly   = FALSE;
-    // Docs: Also note that - unlike textures - swap chain back buffers, render targets [..] can be locked
-    desc.IsLockable         = TRUE;
+    // we cannot respect D3DPRESENTFLAG_LOCKABLE_BACKBUFFER here because
+    // we might need to lock for the BlitGDI fallback path
+    desc.IsLockable         = true;
 
     for (uint32_t i = 0; i < NumBuffers; i++) {
       D3D9Surface* surface;
@@ -1060,6 +1100,8 @@ namespace dxvk {
     if (m_hud != nullptr) {
       m_hud->addItem<hud::HudClientApiItem>("api", 1, GetApiName());
       m_hud->addItem<hud::HudSamplerCount>("samplers", -1, m_parent);
+      m_hud->addItem<hud::HudFixedFunctionShaders>("ffshaders", -1, m_parent);
+      m_hud->addItem<hud::HudSWVPState>("swvp", -1, m_parent);
 
 #ifdef D3D9_ALLOW_UNMAPPING
       m_hud->addItem<hud::HudTextureMemory>("memory", -1, m_parent);
@@ -1076,6 +1118,17 @@ namespace dxvk {
       m_ramp.green[i] = identity;
       m_ramp.blue[i]  = identity;
     }
+  }
+
+
+  void D3D9SwapChainEx::UpdateTargetFrameRate(uint32_t SyncInterval) {
+    double frameRateOption = double(m_parent->GetOptions()->maxFrameRate);
+    double frameRate = std::max(frameRateOption, 0.0);
+
+    if (SyncInterval && frameRateOption == 0.0)
+      frameRate = -m_displayRefreshRate / double(SyncInterval);
+
+    m_wctx->presenter->setFrameRateLimit(frameRate, GetActualFrameLatency());
   }
 
 
@@ -1295,10 +1348,10 @@ namespace dxvk {
     || dstRect.right  - dstRect.left != LONG(width)
     || dstRect.bottom - dstRect.top  != LONG(height);
 
-    bool recreate =
-       m_wctx->presenter == nullptr
-    || m_wctx->presenter->info().imageExtent.width  != width
-    || m_wctx->presenter->info().imageExtent.height != height;
+    bool recreate = m_wctx != nullptr
+      && (m_wctx->presenter == nullptr
+      || m_wctx->presenter->info().imageExtent.width  != width
+      || m_wctx->presenter->info().imageExtent.height != height);
 
     m_swapchainExtent = { width, height };
     m_dstRect = dstRect;

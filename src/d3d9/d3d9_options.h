@@ -78,8 +78,8 @@ namespace dxvk {
     /// Support X4R4G4B4
     bool supportX4R4G4B4;
 
-    /// Support D32
-    bool supportD32;
+    /// Support D16_LOCKABLE
+    bool supportD16Lockable;
 
     /// Use D32f for D24
     bool useD32forD24;
@@ -119,11 +119,6 @@ namespace dxvk {
     /// Enumerate adapters by displays
     bool enumerateByDisplays;
 
-    /// Should we make our Mads a FFma or do it the long way with an FMul and an FAdd?
-    /// This solves some rendering bugs in games that have z-pass shaders which
-    /// don't match entirely to the regular vertex shader in this way.
-    bool longMad;
-
     /// Cached dynamic buffers: Maps all buffers in cached memory.
     bool cachedDynamicBuffers;
 
@@ -155,9 +150,17 @@ namespace dxvk {
 
     /// Enable emulation of device loss when a fullscreen app loses focus
     bool deviceLossOnFocusLoss;
-    
-    /// How much virtual memory will be used for buffers (in MB).
-    int32_t bufferMemory;
+
+    /// Disable counting losable resources and rejecting calls to Reset() if any are still alive
+    bool countLosableResources;
+
+    /// Ensure that for the same D3D commands the output VK commands
+    /// don't change between runs. Useful for comparative benchmarking,
+    /// can negatively affect performance.
+    bool reproducibleCommandStream;
+
+    /// Enable depth texcoord Z (Dref) scaling (D3D8 quirk)
+    int32_t drefScaling;
   };
 
 }

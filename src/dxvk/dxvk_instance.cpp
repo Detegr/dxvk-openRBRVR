@@ -4,21 +4,24 @@
 #include "dxvk_openvr.h"
 #include "dxvk_openxr.h"
 #include "dxvk_platform_exts.h"
+#include "../wsi/wsi_platform.h"
 
 #include <algorithm>
 #include <sstream>
 
 namespace dxvk {
   
-  DxvkInstance::DxvkInstance()
-  : DxvkInstance(DxvkInstanceImportInfo()) {
+  DxvkInstance::DxvkInstance(DxvkInstanceFlags flags)
+  : DxvkInstance(DxvkInstanceImportInfo(), flags) {
 
   }
 
 
-  DxvkInstance::DxvkInstance(const DxvkInstanceImportInfo& args) {
+  DxvkInstance::DxvkInstance(const DxvkInstanceImportInfo& args, DxvkInstanceFlags flags) {
     Logger::info(str::format("Game: ", env::getExeName()));
     Logger::info(str::format("DXVK: ", DXVK_VERSION));
+
+    wsi::init();
 
     m_config = Config::getUserConfig();
     m_config.merge(Config::getAppConfig(env::getExePath()));
@@ -47,7 +50,7 @@ namespace dxvk {
     for (const auto& provider : m_extProviders)
       provider->initInstanceExtensions();
 
-    createInstanceLoader(args);
+    createInstanceLoader(args, flags);
     m_adapters = this->queryAdapters();
 
     for (const auto& provider : m_extProviders)
@@ -65,6 +68,8 @@ namespace dxvk {
   DxvkInstance::~DxvkInstance() {
     if (m_messenger)
       m_vki->vkDestroyDebugUtilsMessengerEXT(m_vki->instance(), m_messenger, nullptr);
+
+    wsi::quit();
   }
   
   
@@ -107,7 +112,7 @@ namespace dxvk {
   }
 
 
-  void DxvkInstance::createInstanceLoader(const DxvkInstanceImportInfo& args) {
+  void DxvkInstance::createInstanceLoader(const DxvkInstanceImportInfo& args, DxvkInstanceFlags flags) {
     DxvkNameList layerList;
     DxvkNameList extensionList;
     DxvkNameSet extensionSet;
@@ -176,9 +181,10 @@ namespace dxvk {
 
       VkApplicationInfo appInfo = { VK_STRUCTURE_TYPE_APPLICATION_INFO };
       appInfo.pApplicationName      = appName.c_str();
+      appInfo.applicationVersion    = flags.raw();
       appInfo.pEngineName           = "DXVK";
-      appInfo.engineVersion         = VK_MAKE_VERSION(2, 3, 0);
-      appInfo.apiVersion            = VK_MAKE_VERSION(1, 3, 0);
+      appInfo.engineVersion         = VK_MAKE_API_VERSION(0, 2, 4, 1);
+      appInfo.apiVersion            = VK_MAKE_API_VERSION(0, 1, 3, 0);
 
       VkInstanceCreateInfo info = { VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO };
       info.pApplicationInfo         = &appInfo;
@@ -251,7 +257,7 @@ namespace dxvk {
         filterFlags.set(DxvkDeviceFilterFlag::SkipCpuDevices);
     }
 
-    DxvkDeviceFilter filter(filterFlags);
+    DxvkDeviceFilter filter(filterFlags, m_options);
     std::vector<Rc<DxvkAdapter>> result;
 
     uint32_t numDGPU = 0;
@@ -286,7 +292,12 @@ namespace dxvk {
 
         return aRank < bRank;
       });
-    
+
+    if (m_options.hideIntegratedGraphics && numDGPU > 0 && numIGPU > 0) {
+      result.resize(numDGPU);
+      numIGPU = 0;
+    }
+
     if (result.empty()) {
       Logger::warn("DXVK: No adapters found. Please check your "
                    "device filter settings and Vulkan setup. "

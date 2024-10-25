@@ -13,7 +13,39 @@
 
 namespace dxvk {
 
-  const static std::vector<std::pair<const char*, Config>> g_appDefaults = {{
+  using ProfileList = std::vector<std::pair<const char*, Config>>;
+
+
+  const static ProfileList g_profiles = {{
+    /**********************************************/
+    /* D3D12 GAMES (vkd3d-proton with dxvk dxgi)  */
+    /**********************************************/
+
+    /* Diablo 4 - Will complain about missing  *
+     * GPU unless dxgi Id match actual GPU Id  */
+    { R"(\\Diablo IV\.exe$)", {{
+      { "dxgi.hideNvidiaGpu",               "False"  },
+    }} },
+    /* Ratchet & Clank: Rift Apart - does not allow
+     * enabling ray tracing if it sees an AMD GPU. */
+    { R"(\\RiftApart\.exe$)", {{
+      { "dxgi.hideNvidiaGpu",               "False" },
+    }} },
+    /* Persona 3 Reload - disables vsync by default and
+     * runs into severe frame latency issues on Deck. */
+    { R"(\\P3R\.exe$)", {{
+      { "dxgi.syncInterval",                "1" },
+    }} },
+
+    /**********************************************/
+    /* D3D11 GAMES                                */
+    /**********************************************/
+
+    /* Batman Arkham Knight - doesn't like intel vendor id 
+      (refuses to boot if vendor isn't 0x10de or 0x1002)  */
+    { R"(\\BatmanAK\.exe$)", {{
+      { "dxgi.hideIntelGpu",                "True" },
+    }} },
     /* Assassin's Creed Syndicate: amdags issues  */
     { R"(\\ACS\.exe$)", {{
       { "dxgi.customVendorId",              "10de" },
@@ -25,10 +57,6 @@ namespace dxvk {
     /* Elite Dangerous: Compiles weird shaders    *
      * when running on AMD hardware               */
     { R"(\\EliteDangerous64\.exe$)", {{
-      { "dxgi.customVendorId",              "10de" },
-    }} },
-    /* The Vanishing of Ethan Carter Redux        */
-    { R"(\\EthanCarter-Win64-Shipping\.exe$)", {{
       { "dxgi.customVendorId",              "10de" },
     }} },
      /* EVE Online: Needs this to expose D3D12     *
@@ -54,13 +82,16 @@ namespace dxvk {
     /* Far Cry 3: Assumes clear(0.5) on an UNORM  *
      * format to result in 128 on AMD and 127 on  *
      * Nvidia. We assume that the Vulkan drivers  *
-     * match the clear behaviour of D3D11.        */
+     * match the clear behaviour of D3D11.        *
+     * Intel needs to match the AMD result        */
     { R"(\\(farcry3|fc3_blooddragon)_d3d11\.exe$)", {{
       { "dxgi.hideNvidiaGpu",               "False" },
+      { "dxgi.hideIntelGpu",                "True" },
     }} },
-    /* Far Cry 4: Same as Far Cry 3               */
-    { R"(\\FarCry4\.exe$)", {{
+    /* Far Cry 4 and Primal: Same as Far Cry 3    */
+    { R"(\\(FarCry4|FCPrimal)\.exe$)", {{
       { "dxgi.hideNvidiaGpu",               "False" },
+      { "dxgi.hideIntelGpu",                "True" },
     }} },
     /* Frostpunk: Renders one frame with D3D9     *
      * after creating the DXGI swap chain         */
@@ -123,20 +154,22 @@ namespace dxvk {
     }} },
     /* NieR Replicant                             */
     { R"(\\NieR Replicant ver\.1\.22474487139\.exe)", {{
-      { "dxgi.syncInterval",                "1"    },
-      { "dxgi.maxFrameRate",                "60"   },
       { "d3d11.cachedDynamicResources",     "vi"   },
     }} },
     /* SteamVR performance test                   */
     { R"(\\vr\.exe$)", {{
       { "d3d11.dcSingleUseMode",            "False" },
     }} },
-    /* Hitman 2 and 3 - requires AGS library      */
-    { R"(\\HITMAN(2|3)\.exe$)", {{
+    /* Hitman 2 - requires AGS library      */
+    { R"(\\HITMAN2\.exe$)", {{
       { "dxgi.customVendorId",              "10de" },
     }} },
     /* Modern Warfare Remastered                  */
     { R"(\\h1(_[ms]p64_ship|-mod)\.exe$)", {{
+      { "dxgi.customVendorId",              "10de" },
+    }} },
+    /* H2M-Mod - Modern Warfare Remastered        */
+    { R"(\\h2m-mod\.exe$)", {{
       { "dxgi.customVendorId",              "10de" },
     }} },
     /* Modern Warfare 2 Campaign Remastered       *
@@ -230,11 +263,6 @@ namespace dxvk {
     /* Nioh 2                                     */
     { R"(\\nioh2\.exe$)", {{
       { "dxgi.deferSurfaceCreation",        "True" },
-    }} },
-    /* DIRT 5 - uses amd_ags_x64.dll when it      *
-     * detects an AMD GPU                         */
-    { R"(\\DIRT5\.exe$)", {{
-      { "dxgi.customVendorId",              "10de" },
     }} },
     /* Crazy Machines 3 - crashes on long device  *
      * descriptions                               */
@@ -337,11 +365,6 @@ namespace dxvk {
     { R"(\\SonicFrontiers\.exe$)", {{
       { "dxgi.maxFrameLatency",             "1" },
     }} },
-    /* TRAHA Global                               *
-     * Shadow issues when it sees AMD/Nvidia      */
-    { R"(\\RapaNui-Win64-Shipping\.exe$)", {{
-      { "dxgi.customVendorId",              "8086" },
-    }} },
     /* SpellForce 3 Reforced & expansions         *
      * Greatly improves CPU bound performance     */
     { R"(\\SF3ClientFinal\.exe$)", {{
@@ -364,22 +387,6 @@ namespace dxvk {
     { R"(\\SnowRunner\.exe$)", {{
       { "d3d11.dcSingleUseMode",            "False" },
     }} },
-    /* Rockstar Games Launcher                    */
-    { R"(\\Rockstar Games\\Launcher\\Launcher\.exe$)", {{
-      { "dxvk.maxChunkSize",                "1"   },
-    }} },
-    /* Rockstar Social Club                       */
-    { R"(\\Rockstar Games\\Social Club\\SocialClubHelper\.exe$)", {{
-      { "dxvk.maxChunkSize",                "1"   },
-    }} },
-    /* EA Desktop App                             */
-    { R"(\\EADesktop\.exe$)", {{
-      { "dxvk.maxChunkSize",                "1"   },
-    }} },
-    /* GOG Galaxy                                 */
-    { R"(\\GalaxyClient\.exe$)", {{
-      { "dxvk.maxChunkSize",                "1"   },
-    }} },
     /* Fallout 76
      * Game tries to be too "smart" and changes sync
      * interval based on performance (in fullscreen)
@@ -394,10 +401,6 @@ namespace dxvk {
      */
     { R"(\\Fallout76\.exe$)", {{
       { "dxgi.syncInterval",                "1" },
-    }} },
-    /* Blizzard Entertainment Battle.net          */
-    { R"(\\Battle\.net\.exe$)", {{
-      { "dxvk.maxChunkSize",                "1" },
     }} },
     /* Bladestorm Nightmare                       *
      * Game speed increases when above 60 fps in  *
@@ -416,6 +419,34 @@ namespace dxvk {
     /* Riders Republic - Statically linked AMDAGS */
     { R"(\\RidersRepublic(_BE)?\.exe$)", {{
       { "dxgi.hideAmdGpu",                "True"   },
+    }} },
+    /* Kenshi                                     *
+     * Helps CPU bound performance                */
+    { R"(\\kenshi_x64\.exe$)", {{
+      { "d3d11.cachedDynamicResources",     "v"    },
+    }} },
+    /* Granblue Relink: Spams pixel shader UAVs   *
+     * and assumes that AMD GPUs do not expose    *
+     * native command lists for AGS usage         */
+    { R"(\\granblue_fantasy_relink\.exe$)", {{
+      { "d3d11.ignoreGraphicsBarriers",     "True"  },
+      { "d3d11.exposeDriverCommandLists",   "False" },
+      { "dxgi.hideNvidiaGpu",               "False" },
+    }} },
+    /* Crysis 1/Warhead - Game bug in d3d10 makes *
+     * it select lowest supported refresh rate    */
+    { R"(\\Crysis(64)?\.exe$)", {{
+      { "d3d9.maxFrameRate",              "-1"      },
+      { "dxgi.maxFrameRate",              "-1"      },
+    }} },
+    /* EDF6 - possible race condition?            */
+    { R"(\\EDF6\.exe$)", {{
+      { "d3d11.enableContextLock",          "True" },
+    }} },
+    /* Kena: Bridge of Spirits: intel water       * 
+      flickering issues                           */
+    { R"(\\Kena-Win64-Shipping\.exe$)", {{
+      { "dxgi.hideIntelGpu",                 "True" },
     }} },
 
     /**********************************************/
@@ -462,6 +493,7 @@ namespace dxvk {
       { "d3d9.supportX4R4G4B4",             "False" },
       { "d3d9.maxAvailableMemory",          "2048" },
       { "d3d9.memoryTrackTest",             "True" },
+      { "d3d9.cachedDynamicBuffers",        "True" },
     }} },
     /* Dead Space uses the a NULL render target instead
        of a 1x1 one if DF24 is NOT supported
@@ -469,6 +501,14 @@ namespace dxvk {
        Built-in Vsync Locks the game to 30 FPS    */
     { R"(\\Dead Space\.exe$)", {{
       { "d3d9.supportDFFormats",                 "False" },
+      { "d3d9.maxFrameRate",                     "60" },
+      { "d3d9.presentInterval",                  "1" },
+    }} },
+    /* Dead Space 2
+       Physics issues above 60 FPS
+       Built-in Vsync Locks the game to 30 FPS
+    */
+    { R"(\\deadspace2\.exe$)", {{
       { "d3d9.maxFrameRate",                     "60" },
       { "d3d9.presentInterval",                  "1" },
     }} },
@@ -507,10 +547,6 @@ namespace dxvk {
     { R"(\\SKShinoviVersus\.exe$)", {{
       { "d3d9.forceAspectRatio",            "16:9" },
     }} },
-    /* Metal Slug X                               */
-    { R"(\\mslugx\.exe$)", {{
-      { "d3d9.supportD32",                  "False" },
-    }} },
     /* Skyrim (NVAPI)                             */
     { R"(\\TESV\.exe$)", {{
       { "d3d9.customVendorId",              "1002" },
@@ -521,20 +557,26 @@ namespace dxvk {
     }} },
     /* GTA IV (NVAPI)                             */
     /* Also thinks we're always on Intel          *
-     * and will report/use bad amounts of VRAM.
+     * and will report/use bad amounts of VRAM
+     * if we report more than 128 MB of VRAM.
      * Disabling support for DF texture formats
      * makes the game use a better looking render
      * path for mirrors.
      * Also runs into issues after alt-tabbing.   */
     { R"(\\(GTAIV|EFLC)\.exe$)", {{
       { "d3d9.customVendorId",              "1002" },
-      { "dxgi.emulateUMA",                  "True" },
+      { "dxgi.maxDeviceMemory",             "128" },
       { "d3d9.supportDFFormats",            "False" },
-      { "d3d9.deviceLostOnFocusLoss",       "True" },
+      { "d3d9.deviceLossOnFocusLoss",       "True" },
     }} },
-    /* Battlefield 2 (bad z-pass)                 */
-    { R"(\\BF2\.exe$)", {{
-      { "d3d9.longMad",                     "True" },
+    /* Battlefield 2 & Battlefield 2142           *
+     * Bad z-pass and ingame GUI loss on alt tab  *
+     * Also hang when alt tabbing which seems     *
+     * like a game bug that d3d9 drivers work     *
+     * around.                                    */
+    { R"(\\(BF2|BF2142)\.exe$)", {{
+      { "d3d9.deviceLossOnFocusLoss",       "True" },
+      { "d3d9.countLosableResources",       "False"},
     }} },
     /* SpellForce 2 Series                        */
     { R"(\\SpellForce2.*\.exe$)", {{
@@ -543,7 +585,8 @@ namespace dxvk {
     /* Tomb Raider: Legend, Anniversary, Underworld  *
      * Read from a buffer created with:              *
      * D3DPOOL_DEFAULT,                              *
-     * D3DUSAGE_DYNAMIC | D3DUSAGE_WRITEONLY buffer  */
+     * D3DUSAGE_DYNAMIC | D3DUSAGE_WRITEONLY buffer. *
+     * Legend flickers with next gen content option. */
     { R"(\\(trl|tra|tru)\.exe$)", {{
       { "d3d9.cachedDynamicBuffers",        "True" },
       { "d3d9.maxFrameRate",                "60" },
@@ -563,7 +606,7 @@ namespace dxvk {
       { "d3d9.customDeviceId",              "0402" },
     }} },
     /* Warhammer: Online                         */
-    { R"(\\WAR(-64)?\.exe$)", {{
+    { R"(\\(WAR(-64)?|WARTEST(-64)?)\.exe$)", {{
       { "d3d9.customVendorId",              "1002" },
     }} },
     /* Dragon Nest                               */
@@ -577,6 +620,10 @@ namespace dxvk {
     /* Kohan II                                  */
     { R"(\\k2\.exe$)", {{
       { "d3d9.memoryTrackTest",             "True" },
+    }} },
+    /* Time Leap Paradise SUPER LIVE             */
+    { R"(\\tlpsl\.exe$)", {{
+      { "d3d9.deferSurfaceCreation",        "True" },
     }} },
     /* Ninja Gaiden Sigma 1/2                    */
     { R"(\\NINJA GAIDEN SIGMA(2)?\.exe$)", {{
@@ -648,10 +695,6 @@ namespace dxvk {
     { R"(\\SWTFU2\.exe$)", {{
       { "d3d9.forceSamplerTypeSpecConstants",  "True" },
     }} },
-    /* Scrapland (Remastered)                   */
-    { R"(\\Scrap\.exe$)", {{
-      { "d3d9.deferSurfaceCreation",        "True" },
-    }} },
     /* Majesty 2 (Collection)                   *
      * Crashes on UMA without a memory limit,   *
      * since the game(s) will allocate all      *
@@ -660,12 +703,14 @@ namespace dxvk {
       { "d3d9.memoryTrackTest",             "True" },
       { "d3d9.maxAvailableMemory",          "2048" },
     }} },
-    /* Myst V End of Ages
-       Game has white textures on amd radv.
-       Expects Nvidia, Intel or ATI VendorId.
-       "Radeon" in gpu description also works   */
+    /* Myst V End of Ages                       *
+     * White textures unless it sees Nvidia,    *
+     * Intel or ATI VendorId.                   *
+     * "Radeon" in gpu description also works.  *
+     * countLosable for resolution change crash.*/
     { R"(\\eoa\.exe$)", {{
       { "d3d9.customVendorId",              "10de" },
+      { "d3d9.countLosableResources",       "False" },
     }} },
     /* Supreme Commander & Forged Alliance Forever */
     { R"(\\(SupremeCommander|ForgedAlliance)\.exe$)", {{
@@ -679,10 +724,6 @@ namespace dxvk {
        Physics break at high fps               */
     { R"(\\bionic_commando\.exe$)", {{
       { "d3d9.maxFrameRate",                "60" },
-    }} },
-    /* Need For Speed 3 modern patch            */
-    { R"(\\nfs3\.exe$)", {{
-      { "d3d9.enableDialogMode",            "True" },
     }} },
     /* Beyond Good And Evil                     *
      * UI breaks at high fps                     */
@@ -772,19 +813,22 @@ namespace dxvk {
       { "d3d9.maxFrameRate",                "60" },
     }} },
     /* Codename Panzers Phase One/Two          *
-     * Main menu won't render after intros     */
+     * Main menu won't render after intros     *
+     * and CPU bound performance               */
     { R"(\\(PANZERS|PANZERS_Phase_2)\.exe$)", {{
       { "d3d9.enableDialogMode",            "True"   },
+      { "d3d9.cachedDynamicBuffers",        "True"   },
     }} },
     /* DC Universe Online                      *
      * Freezes after alt tabbing               */
     { R"(\\DCGAME\.EXE$)", {{
-      { "d3d9.deviceLostOnFocusLoss",       "True" },
+      { "d3d9.deviceLossOnFocusLoss",       "True" },
     }} },
     /* Halo Online                             *
      * Black textures                          */
     { R"(\\eldorado\.exe$)", {{
       { "d3d9.floatEmulation",              "Strict"   },
+      { "d3d9.allowDirectBufferMapping",    "False" },
     }} },
     /* Injustice: Gods Among Us                *
      * Locks a buffer that's still in use      */
@@ -807,34 +851,324 @@ namespace dxvk {
     { R"(\\Snowblind\.(SP|MP|exe)$)", {{
       { "d3d9.maxFrameRate",                "60" },
     }} },
+    /* Aviary Attorney                         */
+    { R"(\\Aviary Attorney\\nw\.exe$)", {{
+      { "d3d9.maxFrameRate",                "60" },
+    }} },
     /* Drakensang: The Dark Eye                */
     { R"(\\drakensang\.exe$)", {{
       { "d3d9.deferSurfaceCreation",        "True" },
     }} },
+    /* Age of Empires 2 - janky frame timing   */
+    { R"(\\AoK HD\.exe$)", {{
+      { "d3d9.maxFrameLatency",             "1" },
+    }} },
+    /* Battlestations Midway                   */
+    { R"(\\Battlestationsmidway\.exe$)", {{
+      { "d3d9.cachedDynamicBuffers",     "True" },
+    }} },
+    /* SkyDrift                                 *
+     * Works around alt tab OOM crash           */
+    { R"(\\SkyDrift\.exe$)" , {{
+      { "d3d9.allowDirectBufferMapping",    "False" },
+    }} },
+     /* Assassin's Creed 2                      *
+     *  Helps alt tab crash on Linux            */
+    { R"(\\AssassinsCreedIIGame\.exe$)" , {{
+      { "d3d9.deviceLossOnFocusLoss",       "True" },
+    }} },
+    /* Sonic CD                                */
+    { R"(\\soniccd\.exe$)", {{
+      { "d3d9.maxFrameRate",                "60" },
+    }} },
+    /* UK Truck Simulator 1                    */
+    { R"(\\UK Truck Simulator\\bin\\win_x86\\game\.exe$)", {{
+      { "d3d9.floatEmulation",              "Strict" },
+    }} },
+    /* d3d9 Supreme Ruler games              *
+     * Leaks a StateBlock leading                *
+     * to Reset calls failing                    */
+    { R"(\\SupremeRuler(Ultimate|GreatWar|1936|CW)\.exe$)", {{
+      { "d3d9.countLosableResources",       "False" },
+    }} },
+    /* Operation Flashpoint: Red River           *
+     * Flickering issues                         */
+    { R"(\\RedRiver\.exe$)", {{
+      { "d3d9.floatEmulation",              "Strict" },
+    }} },
+    /* Dark Void - Crashes above 60fps in places */
+    { R"(\\ShippingPC-SkyGame\.exe$)", {{
+      { "d3d9.maxFrameRate",                "60" },
+    }} },
+    /* 9th Dawn II                               *
+     * OpenGL game that also spins up d3d9       *
+     * Black screens without config              */
+    { R"(\\ninthdawnii\.exe$)", {{
+      { "d3d9.deferSurfaceCreation",        "True" },
+    }} },
+    /* Delta Force: Xtreme 1 & 2                 *
+     * Black screen on Alt-Tab and performance   */
+    { R"(\\(DFX|dfx2)\.exe$)", {{
+      { "d3d9.deviceLossOnFocusLoss",       "True" },
+      { "d3d9.cachedDynamicBuffers",        "True" },
+    }} },
+    /* The Sims 3 - Black screen on alt-tab      */
+    { R"(\\TS3(W)?\.exe$)", {{ 
+      { "d3d9.deviceLossOnFocusLoss",       "True" },
+    }} },
+    /* Prototype                                 *
+     * Incorrect shadows on AMD & Intel          */
+    { R"(\\prototypef\.exe$)", {{ 
+      { "d3d9.supportDFFormats",            "False" },
+    }} },
+    /* STAR WARS: The Force Unleashed            *
+     * Prevents black screen on each alt-tab     */
+    { R"(\\SWTFU\.exe$)", {{ 
+      { "d3d9.deviceLossOnFocusLoss",       "True" },
+    }} },
+    /* Fallout New Vegas - Various visual issues *
+     * with mods such as New Vegas Reloaded      */
+    { R"(\\FalloutNV\.exe$)", {{ 
+      { "d3d9.floatEmulation",              "Strict" },
+    }} },
+    /* Dungeons and Dragons: Dragonshard         *
+     * Massive FPS decreases in some scenes      */
+    { R"(\\Dragonshard\.exe$)", {{ 
+      { "d3d9.cachedDynamicBuffers",        "True" },
+    }} },
+    /* Guild Wars 1 - Alt-tab black screen when  *
+     * fullscreen with non native resolution     */
+    { R"(\\Gw\.exe$)", {{ 
+      { "d3d9.deviceLossOnFocusLoss",       "True" },
+    }} },
+    /* Battle for Middle-earth 2 and expansion   *
+     * Slowdowns in certain scenarios            */
+    { R"(\\(The Battle for Middle-earth( \(tm\))? II( Demo)?)"
+      R"(|The Lord of the Rings, The Rise of the Witch-king)\\game\.dat$)", {{
+      { "d3d9.cachedDynamicBuffers",        "True" },
+    }} },
+    /* WRC4 - Audio breaks above 60fps           */
+    { R"(\\WRC4\.exe$)", {{
+      { "d3d9.maxFrameRate",                "60" },
+    }} },
+    /* Splinter Cell Conviction - Alt-tab black  *
+     * screen and unsupported GPU complaint      */
+    { R"(\\conviction_game\.exe$)", {{
+      { "d3d9.deviceLossOnFocusLoss",       "True" },
+      { "dxgi.customVendorId",              "10de" },
+      { "dxgi.customDeviceId",              "05e0" },
+      { "dxgi.customDeviceDesc",            "GeForce GTX 295" },
+    }} },
+    /* Resident Evil: Operation Raccoon City     */
+    { R"(\\RaccoonCity\.exe$)", {{
+      { "d3d9.textureMemory",               "0" },
+    }} },
+    /* APB: Reloaded                               *
+     * Fixes frametime jumps when shooting         */
+    { R"(\\APB\.exe$)", {{
+      { "d3d9.cachedDynamicBuffers",        "True" },
+    }} },
+    /* Battle Mages - helps CPU bound perf         */
+    { R"(\\Battle Mages\\mages\.exe$)", {{
+      { "d3d9.cachedDynamicBuffers",        "True" },
+    }} },
+    /* Prince of Persia (2008) - Can get stuck     *
+     * during loading at very high fps             */
+    { R"(\\PrinceOfPersia_Launcher\.exe$)", {{
+      { "d3d9.maxFrameRate",                 "240" },
+    }} },
+    /* F.E.A.R 1 & expansions                      *
+     * Graphics glitches at very high fps          */
+    { R"(\\FEAR(MP|XP|XP2)?\.exe$)", {{
+      { "d3d9.maxFrameRate",                 "360" },
+    }} },
 
     /**********************************************/
-    /* D3D12 GAMES (vkd3d-proton with dxvk dxgi)  */
+    /* D3D8 GAMES                                 */
     /**********************************************/
 
-    /* Diablo 4 - Will complain about missing  *
-     * GPU unless dxgi Id match actual GPU Id  */
-    { R"(\\Diablo IV\.exe$)", {{
-      { "dxgi.hideNvidiaGpu",               "False"  },
+    /* Duke Nukem Forever (2001)                  */
+    { R"(\\DukeForever\.exe$)", {{
+      { "d3d9.maxFrameRate",                "60"   },
     }} },
-    /* WILD HEARTS™️                            *
-     * D3D12 title using D3D11 device for      *
-     * media texture creation, whereby a large *
-     * chunk size only slows down media        *
-     * initialization                          */
-    { R"(\\WILD HEARTS(_Trial)?\.exe$)", {{
-      { "dxvk.maxChunkSize",                 "4" },
+    /* Indiana Jones and the Emperor's Tomb      *
+     * Fixes intro window being stuck on screen  */
+    { R"(\\indy\.exe$)", {{
+      { "d3d9.enableDialogMode",            "True" },
     }} },
-    /* Ratchet & Clank: Rift Apart - does not allow
-     * enabling ray tracing if it sees an AMD GPU. */
-    { R"(\\RiftApart\.exe$)", {{
-      { "dxgi.hideNvidiaGpu",               "False" },
+    /* Anito: Defend a Land Enraged              */
+    { R"(\\Anito\.exe$)", {{
+      { "d3d9.memoryTrackTest",             "True" },
+      { "d3d9.maxAvailableMemory",          "1024" },
+    }} },
+    /* Red Faction                               *
+     * Fixes crashing when starting a new game   */
+    { R"(\\RF\.exe$)", {{
+      { "d3d9.allowDirectBufferMapping",   "False" },
+    }} },
+    /* Commandos 3                               *
+     * The game doesn't use NOOVERWRITE properly *
+     * and reads from actively modified buffers, *
+     * which causes graphical glitches at times  */
+    { R"(\\Commandos3\.exe$)", {{
+      { "d3d9.allowDirectBufferMapping",   "False" },
+    }} },
+    /* Motor City Online                         */
+    { R"(\\MCity_d\.exe$)", {{
+      { "d3d9.cachedDynamicBuffers",        "True" },
+      { "d3d8.batching",                    "True" },
+    }} },
+    /* Railroad Tycoon 3                         */
+    { R"(\\RT3\.exe$)", {{
+      { "d3d9.maxFrameRate",                  "60" },
+    }} },
+    /* Pure Pinball 2.0 REDUX                    *
+     * This game reads from undeclared vs inputs *
+     * but somehow works on native. Let's just   *
+     * change its declaration to make them work. */
+    { R"(\\Pure Pinball 2\.0 REDUX\.exe$)", {{
+      { "d3d8.forceVsDecl",  "0:2,4:2,7:4,9:1,8:1" },
+    }} },
+    /* Need for Speed III: Hot Pursuit           *
+       (with the "Modern Patch")                 */
+    { R"(\\nfs3\.exe$)", {{
+      { "d3d9.enableDialogMode",            "True" },
+      { "d3d9.cachedDynamicBuffers",        "True" },
+      { "d3d8.batching",                    "True" },
+    }} },
+    /* Need for Speed: High Stakes / Road         *
+       Challenge (with the "Modern Patch") -      *
+       Won't actually render anything in game     *
+       without a memory limit in place            */
+    { R"(\\nfs4\.exe$)", {{
+      { "d3d9.enableDialogMode",            "True" },
+      { "d3d9.cachedDynamicBuffers",        "True" },
+      { "d3d9.memoryTrackTest",             "True" },
+      { "d3d9.maxAvailableMemory",           "256" },
+      { "d3d8.batching",                    "True" },
+    }} },
+    /* Need for Speed: Hot Pursuit 2              */
+    { R"(\\NFSHP2\.exe$)", {{
+      { "d3d9.cachedDynamicBuffers",        "True" },
+    }} },
+    /* Project I.G.I. 2: Covert Strike            */
+    { R"(\\igi2\.exe$)", {{
+      { "d3d9.cachedDynamicBuffers",        "True" },
+    }} },
+    /* Treasure Planet: Battle at Procyon        *
+     * Declares v5 as color but shader uses v6   */
+    { R"(\\TP_Win32\.exe$)", {{
+      { "d3d8.forceVsDecl",      "0:2,3:2,6:4,7:1" },
+    }} },
+    /* Scrapland (Remastered)                   */
+    { R"(\\Scrap\.exe$)", {{
+      { "d3d9.deferSurfaceCreation",        "True" },
+    }} },
+    /* V-Rally 3                                  */
+    { R"(\\VRally3(Demo)?\.exe$)", {{
+      { "d3d9.maxFrameRate",                  "60" },
+    }} },
+    /* Soldiers: Heroes Of World War II           *
+     * Fills up all available memory and hangs    *
+     * while loading the main menu otherwise      */
+    { R"(\\Soldiers\.exe$)", {{
+      { "d3d9.memoryTrackTest",             "True" },
+      { "d3d9.maxAvailableMemory",          "512"  },
+    }} },
+    /* Cossacks II: Napoleonic Wars &             *
+     * Battle for Europe                          */
+    { R"(\\Cossacks II.*\\engine\.exe$)", {{
+      { "d3d9.maxFrameRate",                  "60" },
+    }} },
+    /* Alexander                                  */
+    { R"(\\Alexander\\Data\\engine\.exe$)", {{
+      { "d3d9.maxFrameRate",                  "60" },
+    }} },
+    /* 3DMark2001 (SE)                            *
+     * Fixes a drastic performance drop in the    *
+     * "Car Chase - High Detail" benchmark        */
+    { R"(\\3DMark2001(SE)?\.exe$)", {{
+      { "d3d9.allowDirectBufferMapping",   "False" },
+    }} },
+    /* Delta Force: Black Hawk Down               */
+    { R"(\\dfbhd\.exe$)", {{
+      { "d3d9.cachedDynamicBuffers",        "True" },
+    }} },
+    /* X2: The Threat                             */
+    { R"(\\X2\.exe$)", {{
+      { "d3d9.cachedDynamicBuffers",        "True" },
+    }} },
+    /* The Lord of the Rings:                     *
+     * The Fellowship of the Ring                 */
+    { R"(\\Fellowship\.exe$)", {{
+      { "d3d9.maxFrameRate",                  "60" },
+      { "d3d8.placeP8InScratch",            "True" },
+    }} },
+    /* Rise of Nations + Expansion - alt-tab crash*/
+    { R"(\\(nations|patriots)\.exe$)", {{
+      { "d3d9.deviceLossOnFocusLoss",       "True" },
+    }} },
+    /* Inquisitor (2009)                          *
+     * Leaks a resource when alt-tabbing          */
+    { R"(\\Inquisitor\.exe$)", {{
+      { "d3d9.countLosableResources",      "False" },
+    }} },
+    /* Art of Murder FBI Confidential - CPU perf  */
+    { R"(\\Art of Murder - FBI Confidential\\game\.exe$)", {{
+      { "d3d9.cachedDynamicBuffers",        "True" },
+    }} },
+    /* Max Payne 1 - Stalls waiting for an index buffer */
+    { R"(\\MaxPayne\.exe$)", {{
+      { "d3d9.allowDirectBufferMapping",   "False" },
+    }} },
+    /* Z: Steel Soldiers                          */
+    { R"(\\z2\.exe$)", {{
+      { "d3d9.cachedDynamicBuffers",        "True" },
+    }} },
+    /* FIFA Football 2003                         */
+    { R"(\\fifa2003(demo)?\.exe$)", {{
+      { "d3d9.cachedDynamicBuffers",        "True" },
+    }} },
+    /* Splinter Cell: Pandora Tomorrow            *
+     * Broken inputs and physics above 60 FPS     */
+    { R"(\\SplinterCell2\.exe$)", {{
+      { "d3d9.maxFrameRate",                  "60" },
+    }} },
+    /* Chrome: Gold Edition                       *
+     * Broken character model motion at high FPS  */
+    { R"(\\Chrome(Single|Net)\.exe$)", {{
+      { "d3d9.maxFrameRate",                  "60" },
+    }} },
+    /* Rayman 3: Hoodlum Havoc                    *
+     * Missing geometry and textures without      *
+     * legacy DISCARD behavior                    */
+    { R"(\\Rayman3\.exe$)", {{
+      { "d3d9.allowDirectBufferMapping",   "False" },
+      { "d3d8.forceLegacyDiscard",          "True" },
     }} },
   }};
+
+
+  const static ProfileList g_deckProfiles = {{
+    /* Fallout 4: Defaults to 45 FPS on OLED, but also breaks above 60 FPS */
+    { R"(\\Fallout4\.exe$)", {{
+      { "dxgi.syncInterval",                "1" },
+      { "dxgi.maxFrameRate",                "60" },
+    }} },
+  }};
+
+
+  const Config* findProfile(const ProfileList& profiles, const std::string& appName) {
+    auto appConfig = std::find_if(profiles.begin(), profiles.end(),
+      [&appName] (const std::pair<const char*, Config>& pair) {
+        std::regex expr(pair.first, std::regex::extended | std::regex::icase);
+        return std::regex_search(appName, expr);
+      });
+
+    return appConfig != profiles.end()
+      ? &appConfig->second
+      : nullptr;
+  }
 
 
   static bool isWhitespace(char ch) {
@@ -1086,20 +1420,22 @@ namespace dxvk {
 
 
   Config Config::getAppConfig(const std::string& appName) {
-    auto appConfig = std::find_if(g_appDefaults.begin(), g_appDefaults.end(),
-      [&appName] (const std::pair<const char*, Config>& pair) {
-        std::regex expr(pair.first, std::regex::extended | std::regex::icase);
-        return std::regex_search(appName, expr);
-      });
+    const Config* config = nullptr;
 
-    if (appConfig != g_appDefaults.end()) {
+    if (env::getEnvVar("SteamDeck") == "1")
+      config = findProfile(g_deckProfiles, appName);
+
+    if (!config)
+      config = findProfile(g_profiles, appName);
+
+    if (config) {
       // Inform the user that we loaded a default config
       Logger::info(str::format("Found built-in config:"));
 
-      for (auto& pair : appConfig->second.m_options)
+      for (auto& pair : config->m_options)
         Logger::info(str::format("  ", pair.first, " = ", pair.second));
 
-      return appConfig->second;
+      return *config;
     }
 
     return Config();
