@@ -230,3 +230,14 @@ HRESULT __stdcall Direct3DCreateVRImpl(IDirect3DDevice9* pDevice,
 
   return D3D_OK;
 }
+
+HRESULT __stdcall PatchSPIRVToVertexShader(IDirect3DVertexShader9 *d3dShader, const uint32_t* data, uint32_t size)
+{
+    D3D9Shader<IDirect3DVertexShader9>* shader = reinterpret_cast<D3D9Shader<IDirect3DVertexShader9>*>(d3dShader);
+    D3D9CommonShader common = shader->GetCommonShader();
+    Rc<DxvkShader> dxvkShader = common->GetShader();
+
+    SpirvCodeBuffer codeBuffer(data, size);
+    DxvkShaderCreateInfo info = dxvkShader->info();
+    *dxvkShader() = Rc<DxvkShader>(new DxvkShader(info, codeBuffer));
+}

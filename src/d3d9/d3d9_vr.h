@@ -81,3 +81,5 @@ __CRT_UUID_DECL(IDirect3DVR9,
 
 HRESULT __stdcall Direct3DCreateVRImpl(IDirect3DDevice9* pDevice,
                                        IDirect3DVR9** pInterface);
+
+HRESULT __stdcall CreateVertexShaderFromSPRIV(IDirect3DVertexShader9 *shader, const uint32_t* data, uint32_t size);
