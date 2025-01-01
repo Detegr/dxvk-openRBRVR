@@ -1056,12 +1056,14 @@ namespace dxvk {
 
     HRESULT CreateRenderTargetFromDesc(D3D9_COMMON_TEXTURE_DESC* pDesc, IDirect3DSurface9** ppSurface, HANDLE* pSharedHandle);
 
-  private:
-
     DxvkCsChunkRef AllocCsChunk() {
       DxvkCsChunk* chunk = m_csChunkPool.allocChunk(DxvkCsChunkFlag::SingleUse);
       return DxvkCsChunkRef(chunk, &m_csChunkPool);
     }
+
+    bool MultiViewFF() const { return m_multiViewFF; }
+
+  private:
 
     template<bool AllowFlush = true, typename Cmd>
     void EmitCs(Cmd&& command) {
@@ -1484,6 +1486,7 @@ namespace dxvk {
     D3D9VkInteropDevice             m_d3d9Interop;
     D3D9On12                        m_d3d9On12;
     DxvkD3D8Bridge                  m_d3d8Bridge;
+    bool                            m_multiViewFF;
   };
 
 }
