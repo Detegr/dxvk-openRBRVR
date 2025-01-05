@@ -1062,6 +1062,10 @@ namespace dxvk {
     }
 
     bool MultiViewFF() const { return m_multiViewFF; }
+    void SetMultiViewFF(bool enabled) {
+      m_multiViewFF = enabled;
+      m_flags.set(D3D9DeviceFlag::DirtyFFVertexShader);
+    }
 
   private:
 

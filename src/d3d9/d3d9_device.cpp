@@ -7502,6 +7502,7 @@ namespace dxvk {
       key.Data.Contents.AmbientSource    = m_state.renderStates[D3DRS_AMBIENTMATERIALSOURCE]  & mask;
       key.Data.Contents.SpecularSource   = m_state.renderStates[D3DRS_SPECULARMATERIALSOURCE] & mask;
       key.Data.Contents.EmissiveSource   = m_state.renderStates[D3DRS_EMISSIVEMATERIALSOURCE] & mask;
+      key.Data.Contents.MultiView        = m_multiViewFF;
 
       uint32_t lightCount = 0;
 
