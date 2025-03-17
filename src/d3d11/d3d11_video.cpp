@@ -173,35 +173,23 @@ namespace dxvk {
 
     Rc<DxvkImage> dxvkImage = GetCommonTexture(pResource)->GetImage();
 
-    if (!(dxvkImage->info().usage & VK_IMAGE_USAGE_SAMPLED_BIT)) {
-      DxvkImageCreateInfo info = dxvkImage->info();
-      info.flags  = VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT | VK_IMAGE_CREATE_EXTENDED_USAGE_BIT;
-      info.usage  = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
-      info.stages = VK_PIPELINE_STAGE_TRANSFER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-      info.access = VK_ACCESS_TRANSFER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT;
-      info.tiling = VK_IMAGE_TILING_OPTIMAL;
-      info.layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-      info.shared = VK_FALSE;
-      dxvkImage = m_copy = pDevice->GetDXVKDevice()->createImage(info, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-    }
-
     DXGI_VK_FORMAT_INFO formatInfo = pDevice->LookupFormat(resourceDesc.Format, DXGI_VK_FORMAT_MODE_COLOR);
     DXGI_VK_FORMAT_FAMILY formatFamily = pDevice->LookupFamily(resourceDesc.Format, DXGI_VK_FORMAT_MODE_COLOR);
 
     VkImageAspectFlags aspectMask = lookupFormatInfo(formatInfo.Format)->aspectMask;
 
-    DxvkImageViewCreateInfo viewInfo;
-    viewInfo.format  = formatInfo.Format;
-    viewInfo.swizzle = formatInfo.Swizzle;
-    viewInfo.usage   = VK_IMAGE_USAGE_SAMPLED_BIT;
+    DxvkImageViewKey viewInfo;
+    viewInfo.format = formatInfo.Format;
+    viewInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT;
+    viewInfo.packedSwizzle = DxvkImageViewKey::packSwizzle(formatInfo.Swizzle);
 
     switch (m_desc.ViewDimension) {
       case D3D11_VPIV_DIMENSION_TEXTURE2D:
-        viewInfo.type       = VK_IMAGE_VIEW_TYPE_2D;
-        viewInfo.minLevel   = m_desc.Texture2D.MipSlice;
-        viewInfo.numLevels  = 1;
-        viewInfo.minLayer   = 0;
-        viewInfo.numLayers  = 1;
+        viewInfo.viewType   = VK_IMAGE_VIEW_TYPE_2D;
+        viewInfo.mipIndex   = m_desc.Texture2D.MipSlice;
+        viewInfo.mipCount   = 1;
+        viewInfo.layerIndex = m_desc.Texture2D.ArraySlice;
+        viewInfo.layerCount = 1;
         break;
 
       case D3D11_VPIV_DIMENSION_UNKNOWN:
@@ -209,17 +197,17 @@ namespace dxvk {
     }
 
     m_subresources.aspectMask = aspectMask;
-    m_subresources.baseArrayLayer = viewInfo.minLayer;
-    m_subresources.layerCount = viewInfo.numLayers;
-    m_subresources.mipLevel = viewInfo.minLevel;
+    m_subresources.baseArrayLayer = viewInfo.layerIndex;
+    m_subresources.layerCount = viewInfo.layerCount;
+    m_subresources.mipLevel = viewInfo.mipIndex;
 
     for (uint32_t i = 0; aspectMask && i < m_views.size(); i++) {
-      viewInfo.aspect = vk::getNextAspect(aspectMask);
+      viewInfo.aspects = vk::getNextAspect(aspectMask);
 
-      if (viewInfo.aspect != VK_IMAGE_ASPECT_COLOR_BIT)
+      if (viewInfo.aspects != VK_IMAGE_ASPECT_COLOR_BIT)
         viewInfo.format = formatFamily.Formats[i];
 
-      m_views[i] = pDevice->GetDXVKDevice()->createImageView(dxvkImage, viewInfo);
+      m_views[i] = dxvkImage->createView(viewInfo);
     }
 
     m_isYCbCr = IsYCbCrFormat(resourceDesc.Format);
@@ -287,35 +275,34 @@ namespace dxvk {
     DXGI_VK_FORMAT_INFO formatInfo = pDevice->LookupFormat(
       resourceDesc.Format, DXGI_VK_FORMAT_MODE_COLOR);
 
-    DxvkImageViewCreateInfo viewInfo;
-    viewInfo.format  = formatInfo.Format;
-    viewInfo.aspect  = lookupFormatInfo(viewInfo.format)->aspectMask;
-    viewInfo.swizzle = formatInfo.Swizzle;
-    viewInfo.usage   = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+    DxvkImageViewKey viewInfo;
+    viewInfo.format = formatInfo.Format;
+    viewInfo.aspects = lookupFormatInfo(viewInfo.format)->aspectMask;
+    viewInfo.packedSwizzle = DxvkImageViewKey::packSwizzle(formatInfo.Swizzle);
+    viewInfo.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 
     switch (m_desc.ViewDimension) {
       case D3D11_VPOV_DIMENSION_TEXTURE2D:
-        viewInfo.type       = VK_IMAGE_VIEW_TYPE_2D;
-        viewInfo.minLevel   = m_desc.Texture2D.MipSlice;
-        viewInfo.numLevels  = 1;
-        viewInfo.minLayer   = 0;
-        viewInfo.numLayers  = 1;
+        viewInfo.viewType   = VK_IMAGE_VIEW_TYPE_2D;
+        viewInfo.mipIndex   = m_desc.Texture2D.MipSlice;
+        viewInfo.mipCount   = 1;
+        viewInfo.layerIndex = 0;
+        viewInfo.layerCount = 1;
         break;
 
       case D3D11_VPOV_DIMENSION_TEXTURE2DARRAY:
-        viewInfo.type       = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
-        viewInfo.minLevel   = m_desc.Texture2DArray.MipSlice;
-        viewInfo.numLevels  = 1;
-        viewInfo.minLayer   = m_desc.Texture2DArray.FirstArraySlice;
-        viewInfo.numLayers  = m_desc.Texture2DArray.ArraySize;
+        viewInfo.viewType   = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
+        viewInfo.mipIndex   = m_desc.Texture2DArray.MipSlice;
+        viewInfo.mipCount   = 1;
+        viewInfo.layerIndex = m_desc.Texture2DArray.FirstArraySlice;
+        viewInfo.layerCount = m_desc.Texture2DArray.ArraySize;
         break;
 
       case D3D11_VPOV_DIMENSION_UNKNOWN:
         throw DxvkError("Invalid view dimension");
     }
 
-    m_view = pDevice->GetDXVKDevice()->createImageView(
-      GetCommonTexture(pResource)->GetImage(), viewInfo);
+    m_view = GetCommonTexture(pResource)->GetImage()->createView(viewInfo);
   }
 
 
@@ -1026,6 +1013,10 @@ namespace dxvk {
     const D3D11_VIDEO_PROCESSOR_STREAM*   pStreams) {
     D3D10DeviceLock lock = m_ctx->LockContext();
 
+    m_ctx->EmitCs([] (DxvkContext* ctx) {
+      ctx->beginDebugLabel(vk::makeLabel(0x59eaff, "Video blit"));
+    });
+
     auto videoProcessor = static_cast<D3D11VideoProcessor*>(pVideoProcessor);
     bool hasStreamsEnabled = false;
 
@@ -1038,7 +1029,9 @@ namespace dxvk {
         continue;
 
       if (!hasStreamsEnabled) {
+        m_ctx->ResetDirtyTracking();
         m_ctx->ResetCommandListState();
+
         BindOutputView(pOutputView);
         hasStreamsEnabled = true;
       }
@@ -1048,8 +1041,13 @@ namespace dxvk {
 
     if (hasStreamsEnabled) {
       UnbindResources();
+
       m_ctx->RestoreCommandListState();
     }
+
+    m_ctx->EmitCs([] (DxvkContext* ctx) {
+      ctx->endDebugLabel();
+    });
 
     return S_OK;
   }
@@ -1185,6 +1183,13 @@ namespace dxvk {
     auto dxvkView = static_cast<D3D11VideoProcessorOutputView*>(pOutputView)->GetView();
 
     m_ctx->EmitCs([this, cView = dxvkView] (DxvkContext* ctx) {
+      DxvkImageUsageInfo usage = { };
+      usage.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+      usage.stages = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+      usage.access = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+      ctx->ensureImageCompatibility(cView->image(), usage);
+
       DxvkRenderTargets rt;
       rt.color[0].view = cView;
       rt.color[0].layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
@@ -1219,30 +1224,19 @@ namespace dxvk {
 
     auto view = static_cast<D3D11VideoProcessorInputView*>(pStream->pInputSurface);
 
-    if (view->NeedsCopy()) {
-      m_ctx->EmitCs([
-        cDstImage     = view->GetShadowCopy(),
-        cSrcImage     = view->GetImage(),
-        cSrcLayers    = view->GetImageSubresources()
-      ] (DxvkContext* ctx) {
-        VkImageSubresourceLayers cDstLayers;
-        cDstLayers.aspectMask = cSrcLayers.aspectMask;
-        cDstLayers.baseArrayLayer = 0;
-        cDstLayers.layerCount = cSrcLayers.layerCount;
-        cDstLayers.mipLevel = cSrcLayers.mipLevel;
-
-        ctx->copyImage(
-          cDstImage, cDstLayers, VkOffset3D(),
-          cSrcImage, cSrcLayers, VkOffset3D(),
-          cDstImage->info().extent);
-      });
-    }
-
     m_ctx->EmitCs([this,
       cStreamState  = *pStreamState,
+      cImage        = view->GetImage(),
       cViews        = view->GetViews(),
       cIsYCbCr      = view->IsYCbCr()
     ] (DxvkContext* ctx) {
+      DxvkImageUsageInfo usage = { };
+      usage.usage = VK_IMAGE_USAGE_SAMPLED_BIT;
+      usage.stages = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+      usage.access = VK_ACCESS_SHADER_READ_BIT;
+
+      ctx->ensureImageCompatibility(cImage, usage);
+
       VkViewport viewport;
       viewport.x        = 0.0f;
       viewport.y        = 0.0f;
@@ -1296,11 +1290,13 @@ namespace dxvk {
         uboData.yMax = 0.9215686f;
       }
 
-      DxvkBufferSliceHandle uboSlice = m_ubo->allocSlice();
-      memcpy(uboSlice.mapPtr, &uboData, sizeof(uboData));
+      Rc<DxvkResourceAllocation> uboSlice = m_ubo->allocateStorage();
+      memcpy(uboSlice->mapPtr(), &uboData, sizeof(uboData));
 
-      ctx->invalidateBuffer(m_ubo, uboSlice);
-      ctx->setViewports(1, &viewport, &scissor);
+      DxvkViewport vp = { viewport, scissor };
+
+      ctx->invalidateBuffer(m_ubo, std::move(uboSlice));
+      ctx->setViewports(1, &vp);
 
       ctx->bindShader<VK_SHADER_STAGE_VERTEX_BIT>(Rc<DxvkShader>(m_vs));
       ctx->bindShader<VK_SHADER_STAGE_FRAGMENT_BIT>(Rc<DxvkShader>(m_fs));
@@ -1310,7 +1306,11 @@ namespace dxvk {
       for (uint32_t i = 0; i < cViews.size(); i++)
         ctx->bindResourceImageView(VK_SHADER_STAGE_FRAGMENT_BIT, 1 + i, Rc<DxvkImageView>(cViews[i]));
 
-      ctx->draw(3, 1, 0, 0);
+      VkDrawIndirectCommand draw = { };
+      draw.vertexCount   = 3u;
+      draw.instanceCount = 1u;
+
+      ctx->draw(1, &draw);
 
       for (uint32_t i = 0; i < cViews.size(); i++)
         ctx->bindResourceImageView(VK_SHADER_STAGE_FRAGMENT_BIT, 1 + i, nullptr);
@@ -1324,6 +1324,8 @@ namespace dxvk {
     bufferInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
     bufferInfo.stages = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
     bufferInfo.access = VK_ACCESS_UNIFORM_READ_BIT;
+    bufferInfo.debugName = "Video blit parameters";
+
     m_ubo = m_device->createBuffer(bufferInfo, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
   }
 
@@ -1333,7 +1335,7 @@ namespace dxvk {
     SpirvCodeBuffer fsCode(d3d11_video_blit_frag);
 
     const std::array<DxvkBindingInfo, 3> fsBindings = {{
-      { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, VK_IMAGE_VIEW_TYPE_MAX_ENUM, VK_SHADER_STAGE_FRAGMENT_BIT, VK_ACCESS_UNIFORM_READ_BIT, VK_TRUE },
+      { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, VK_IMAGE_VIEW_TYPE_MAX_ENUM, VK_SHADER_STAGE_FRAGMENT_BIT, VK_ACCESS_UNIFORM_READ_BIT, DxvkAccessOp::None, true },
       { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,  1, VK_IMAGE_VIEW_TYPE_2D,       VK_SHADER_STAGE_FRAGMENT_BIT, VK_ACCESS_SHADER_READ_BIT },
       { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,  2, VK_IMAGE_VIEW_TYPE_2D,       VK_SHADER_STAGE_FRAGMENT_BIT, VK_ACCESS_SHADER_READ_BIT },
     }};

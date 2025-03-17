@@ -43,6 +43,14 @@ namespace dxvk {
 
     // Ensure that RGBA16 swap chains are scRGB if supported
     UpdateColorSpace(m_desc.Format, m_colorSpace);
+
+    // Somewhat hacky way to determine whether to forward the
+    // display refresh rate in windowed mode even with a sync
+    // interval of 1.
+    if (!m_is_d3d12) {
+      auto instance = pFactory->GetDXVKInstance();
+      m_hasLatencyControl = instance->options().latencySleep == Tristate::True;
+    }
   }
   
   
@@ -813,7 +821,7 @@ namespace dxvk {
     if (!selectedMode.RefreshRate.Denominator)
       selectedMode.RefreshRate.Denominator = 1;
 
-    if (!wsi::setWindowMode(outputDesc.Monitor, m_window, ConvertDisplayMode(selectedMode)))
+    if (!wsi::setWindowMode(outputDesc.Monitor, m_window, &m_windowState, ConvertDisplayMode(selectedMode)))
       return DXGI_ERROR_NOT_CURRENTLY_AVAILABLE;
 
     DXGI_VK_MONITOR_DATA* monitorData = nullptr;
@@ -996,6 +1004,29 @@ namespace dxvk {
           UINT                    SyncInterval) {
     if (m_presenter2 == nullptr)
       return;
+
+    // Engage the frame limiter with large sync intervals even in windowed
+    // mode since we want to avoid double-presenting to the swap chain.
+    if (SyncInterval != m_frameRateSyncInterval && m_descFs.Windowed) {
+      bool engageLimiter = (SyncInterval > 1u) || (SyncInterval && m_hasLatencyControl);
+
+      m_frameRateSyncInterval = SyncInterval;
+      m_frameRateRefresh = 0.0f;
+
+      if (engageLimiter && wsi::isWindow(m_window)) {
+        wsi::WsiMode mode = { };
+
+        if (wsi::getCurrentDisplayMode(wsi::getWindowMonitor(m_window), &mode)) {
+          if (mode.refreshRate.numerator && mode.refreshRate.denominator) {
+            m_frameRateRefresh = double(mode.refreshRate.numerator)
+                               / double(mode.refreshRate.denominator);
+          }
+        }
+      }
+    } else if (!m_descFs.Windowed) {
+      // Reset tracking when in fullscreen mode
+      m_frameRateSyncInterval = 0;
+    }
 
     // Use a negative number to indicate that the limiter should only
     // be engaged if the target frame rate is actually exceeded

@@ -33,35 +33,6 @@ public:
     return E_NOINTERFACE;
   }
 
-  HRESULT STDMETHODCALLTYPE CopySurfaceToVulkanImage(IDirect3DSurface9* pSurface, VkImage dst, int64_t format, uint32_t dstWidth, uint32_t dstHeight)
-  {
-    if (unlikely(pSurface == nullptr))
-      return D3DERR_INVALIDCALL;
-
-    D3D9Surface* surface = static_cast<D3D9Surface*>(pSurface);
-    auto* tex = surface->GetCommonTexture();
-    const auto& device = tex->Device();
-    const auto& dxvkdev = device->GetDXVKDevice();
-    DxvkImageCreateInfo info;
-    info.type = VK_IMAGE_TYPE_2D;
-    info.format = static_cast<VkFormat>(format);
-    info.sampleCount = VK_SAMPLE_COUNT_1_BIT;
-    info.extent = { dstWidth, dstHeight, 1 };
-    info.numLayers = 1;
-    info.mipLevels = 1;
-    info.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-    info.stages = VK_PIPELINE_STAGE_TRANSFER_BIT;
-    info.access = VK_ACCESS_TRANSFER_WRITE_BIT;
-    info.tiling = VK_IMAGE_TILING_OPTIMAL;
-    info.layout = VK_IMAGE_LAYOUT_UNDEFINED;
-    info.shared = VK_FALSE;
-    info.viewFormats = reinterpret_cast<VkFormat*>(&format);
-    info.viewFormatCount = 1;
-
-    auto dstImg = Rc(new DxvkImage(device->GetDXVKDevice().ptr(), info, dst, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT));
-    return device->CopyTextureToVkImage(tex, dstImg);
-  }
-
   HRESULT STDMETHODCALLTYPE GetVRDesc(IDirect3DSurface9* pSurface,
                                       D3D9_TEXTURE_VR_DESC* pDesc)
   {

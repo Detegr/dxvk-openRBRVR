@@ -302,7 +302,7 @@ namespace dxvk {
           case VK_COMPARE_OP_EQUAL:            return spvModule.opFOrdEqual           (boolType, alphaId, alphaRefId);
           case VK_COMPARE_OP_LESS_OR_EQUAL:    return spvModule.opFOrdLessThanEqual   (boolType, alphaId, alphaRefId);
           case VK_COMPARE_OP_GREATER:          return spvModule.opFOrdGreaterThan     (boolType, alphaId, alphaRefId);
-          case VK_COMPARE_OP_NOT_EQUAL:        return spvModule.opFOrdNotEqual        (boolType, alphaId, alphaRefId);
+          case VK_COMPARE_OP_NOT_EQUAL:        return spvModule.opFUnordNotEqual      (boolType, alphaId, alphaRefId);
           case VK_COMPARE_OP_GREATER_OR_EQUAL: return spvModule.opFOrdGreaterThanEqual(boolType, alphaId, alphaRefId);
           default:
           case VK_COMPARE_OP_ALWAYS:           return spvModule.constBool(true);
@@ -785,8 +785,8 @@ namespace dxvk {
 
     bool                  m_multiViewFF;
 
-    uint32_t              m_inputMask = 0u;
-    uint32_t              m_outputMask = 0u;
+    uint32_t              m_inputMask       = 0u;
+    uint32_t              m_outputMask      = 0u;
     uint32_t              m_flatShadingMask = 0u;
 
     DxsoProgramType       m_programType;
@@ -799,20 +799,20 @@ namespace dxvk {
     DxsoIsgn              m_isgn;
     DxsoIsgn              m_osgn;
 
-    uint32_t              m_floatType;
-    uint32_t              m_uint32Type;
-    uint32_t              m_vec4Type;
-    uint32_t              m_vec3Type;
-    uint32_t              m_vec2Type;
-    uint32_t              m_mat3Type;
-    uint32_t              m_mat4Type;
-    uint32_t              m_boolType;
+    uint32_t              m_floatType       = 0u;
+    uint32_t              m_uint32Type      = 0u;
+    uint32_t              m_vec4Type        = 0u;
+    uint32_t              m_vec3Type        = 0u;
+    uint32_t              m_vec2Type        = 0u;
+    uint32_t              m_mat3Type        = 0u;
+    uint32_t              m_mat4Type        = 0u;
+    uint32_t              m_boolType        = 0u;
 
-    uint32_t              m_entryPointId;
+    uint32_t              m_entryPointId    = 0u;
 
-    uint32_t              m_rsBlock;
-    uint32_t              m_specUbo;
-    uint32_t              m_mainFuncLabel;
+    uint32_t              m_rsBlock         = 0u;
+    uint32_t              m_specUbo         = 0u;
+    uint32_t              m_mainFuncLabel   = 0u;
 
     D3D9FixedFunctionOptions m_options;
 
@@ -825,11 +825,12 @@ namespace dxvk {
     const std::string&             Name,
           bool                     MultiViewFF,
           D3D9FixedFunctionOptions Options)
-  : m_module(spvVersion(1, 3)), m_multiViewFF(MultiViewFF), m_options(Options) {
-    m_programType = DxsoProgramTypes::VertexShader;
-    m_vsKey    = Key;
-    m_filename = Name;
-  }
+  : m_filename    ( Name )
+  , m_module      ( spvVersion(1, 3) )
+  , m_multiViewFF ( MultiViewFF )
+  , m_programType ( DxsoProgramTypes::VertexShader )
+  , m_vsKey       ( Key )
+  , m_options     ( Options ) { }
 
 
   D3D9FFShaderCompiler::D3D9FFShaderCompiler(
@@ -838,11 +839,12 @@ namespace dxvk {
     const std::string&             Name,
           bool                     MultiViewFF,
           D3D9FixedFunctionOptions Options)
-  : m_module(spvVersion(1, 3)), m_multiViewFF(MultiViewFF), m_options(Options) {
-    m_programType = DxsoProgramTypes::PixelShader;
-    m_fsKey    = Key;
-    m_filename = Name;
-  }
+  : m_filename    ( Name )
+  , m_module      ( spvVersion(1, 3) )
+  , m_multiViewFF ( MultiViewFF )
+  , m_programType ( DxsoProgramTypes::PixelShader )
+  , m_fsKey       ( Key )
+  , m_options     ( Options ) { }
 
 
   Rc<DxvkShader> D3D9FFShaderCompiler::compile() {
@@ -1173,7 +1175,6 @@ namespace dxvk {
         case (DXVK_TSS_TCI_CAMERASPACEPOSITION >> TCIOffset):
           transformed = vtx;
           if (!applyTransform) {
-            Logger::warn(str::format("!applyTransform flags: ", flags, " projidx: ", projIndex));
             count = 3;
             projIndex = 4;
           }
@@ -1310,7 +1311,7 @@ namespace dxvk {
         uint32_t atten  = m_module.opFFma  (m_floatType, d, atten2, atten1);
                  atten  = m_module.opFFma  (m_floatType, d, atten,  atten0);
                  atten  = m_module.opFDiv  (m_floatType, m_module.constf32(1.0f), atten);
-                 atten  = m_module.opNMin  (m_floatType, atten, m_module.constf32(FLT_MAX));
+                 atten  = m_module.opNMin  (m_floatType, atten, m_module.constf32(std::numeric_limits<float>::max()));
 
                  atten  = m_module.opSelect(m_floatType, m_module.opFOrdGreaterThan(bool_t, d, range), m_module.constf32(0.0f), atten);
                  atten  = m_module.opSelect(m_floatType, isDirectional, m_module.constf32(1.0f), atten);
@@ -2410,6 +2411,7 @@ namespace dxvk {
     
     uint32_t floatType = m_module.defFloatType(32);
     uint32_t vec4Type  = m_module.defVectorType(floatType, 4);
+    uint32_t boolType  = m_module.defBoolType();
     
     // Declare uniform buffer containing clip planes
     uint32_t clipPlaneArray  = m_module.defArrayTypeUnique(vec4Type, clipPlaneCountId);
@@ -2450,6 +2452,9 @@ namespace dxvk {
 
     m_module.decorateBuiltIn(clipDistArray, spv::BuiltInClipDistance);
 
+    // Always consider clip planes enabled when doing GPL by forcing 6 for the quick value.
+    uint32_t clipPlaneCount = m_spec.get(m_module, m_specUbo, SpecClipPlaneCount, 0, 32, m_module.constu32(caps::MaxClipPlanes));
+
     // Compute clip distances
     for (uint32_t i = 0; i < caps::MaxClipPlanes; i++) {
       std::array<uint32_t, 2> blockMembers = {{
@@ -2463,12 +2468,14 @@ namespace dxvk {
           clipPlaneBlock, blockMembers.size(), blockMembers.data()));
       
       uint32_t distId = m_module.opDot(floatType, worldPos, planeId);
+
+      uint32_t clipPlaneEnabled = m_module.opULessThan(boolType, m_module.constu32(i), clipPlaneCount);
+
+      uint32_t value = m_module.opSelect(floatType, clipPlaneEnabled, distId, m_module.constf32(0.0f));
       
-      m_module.opStore(
-        m_module.opAccessChain(
-          m_module.defPointerType(floatType, spv::StorageClassOutput),
-          clipDistArray, 1, &blockMembers[1]),
-        distId);
+      m_module.opStore(m_module.opAccessChain(
+        m_module.defPointerType(floatType, spv::StorageClassOutput),
+        clipDistArray, 1, &blockMembers[1]), value);
     }
   }
 

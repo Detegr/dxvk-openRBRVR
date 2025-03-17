@@ -9,6 +9,41 @@
 
 namespace dxvk {
 
+  VkPrimitiveTopology determineGsInputTopology(
+          VkPrimitiveTopology            shader,
+          VkPrimitiveTopology            state) {
+    switch (state) {
+      case VK_PRIMITIVE_TOPOLOGY_POINT_LIST:
+        return VK_PRIMITIVE_TOPOLOGY_POINT_LIST;
+
+      case VK_PRIMITIVE_TOPOLOGY_LINE_LIST_WITH_ADJACENCY:
+      case VK_PRIMITIVE_TOPOLOGY_LINE_STRIP_WITH_ADJACENCY:
+        if (shader == VK_PRIMITIVE_TOPOLOGY_LINE_LIST_WITH_ADJACENCY)
+          return VK_PRIMITIVE_TOPOLOGY_LINE_LIST_WITH_ADJACENCY;
+        [[fallthrough]];
+
+      case VK_PRIMITIVE_TOPOLOGY_LINE_LIST:
+      case VK_PRIMITIVE_TOPOLOGY_LINE_STRIP:
+        return VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
+
+      case VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST_WITH_ADJACENCY:
+      case VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP_WITH_ADJACENCY:
+        if (shader == VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST_WITH_ADJACENCY)
+          return VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST_WITH_ADJACENCY;
+        [[fallthrough]];
+
+      case VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN:
+      case VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST:
+      case VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP:
+        return VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+
+      default:
+        Logger::err(str::format("Unhandled primitive topology ", state));
+        return VK_PRIMITIVE_TOPOLOGY_MAX_ENUM;
+    }
+  }
+
+
   DxvkGraphicsPipelineVertexInputState::DxvkGraphicsPipelineVertexInputState() {
     
   }
@@ -408,16 +443,20 @@ namespace dxvk {
     uint32_t dynamicStateCount = 0;
     std::array<VkDynamicState, 4> dynamicStates = { };
 
-    if (m_device->features().extExtendedDynamicState3.extendedDynamicState3RasterizationSamples
-     && m_device->features().extExtendedDynamicState3.extendedDynamicState3SampleMask
-     && state.msInfo.sampleShadingEnable) {
+    bool hasDynamicMultisampleState = state.msInfo.sampleShadingEnable
+      && m_device->features().extExtendedDynamicState3.extendedDynamicState3RasterizationSamples
+      && m_device->features().extExtendedDynamicState3.extendedDynamicState3SampleMask;
+
+    bool hasDynamicAlphaToCoverage = hasDynamicMultisampleState && state.cbUseDynamicAlphaToCoverage
+      && device->features().extExtendedDynamicState3.extendedDynamicState3AlphaToCoverageEnable;
+
+    if (hasDynamicMultisampleState) {
       dynamicStates[dynamicStateCount++] = VK_DYNAMIC_STATE_RASTERIZATION_SAMPLES_EXT;
       dynamicStates[dynamicStateCount++] = VK_DYNAMIC_STATE_SAMPLE_MASK_EXT;
-
-      if (device->features().extExtendedDynamicState3.extendedDynamicState3AlphaToCoverageEnable
-       && state.cbUseDynamicAlphaToCoverage)
-        dynamicStates[dynamicStateCount++] = VK_DYNAMIC_STATE_ALPHA_TO_COVERAGE_ENABLE_EXT;
     }
+
+    if (hasDynamicAlphaToCoverage)
+      dynamicStates[dynamicStateCount++] = VK_DYNAMIC_STATE_ALPHA_TO_COVERAGE_ENABLE_EXT;
 
     if (state.cbUseDynamicBlendConstants)
       dynamicStates[dynamicStateCount++] = VK_DYNAMIC_STATE_BLEND_CONSTANTS;
@@ -436,6 +475,20 @@ namespace dxvk {
     if (state.feedbackLoop & VK_IMAGE_ASPECT_DEPTH_BIT)
       flags |= VK_PIPELINE_CREATE_DEPTH_STENCIL_ATTACHMENT_FEEDBACK_LOOP_BIT_EXT;
 
+    // Fix up multisample state based on dynamic state. Needed to
+    // silence validation errors in case we hit the full EDS3 path.
+    VkPipelineMultisampleStateCreateInfo msInfo = { VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO };
+    msInfo.sampleShadingEnable = state.msInfo.sampleShadingEnable;
+    msInfo.minSampleShading = state.msInfo.minSampleShading;
+
+    if (!hasDynamicMultisampleState) {
+      msInfo.rasterizationSamples = state.msInfo.rasterizationSamples;
+      msInfo.pSampleMask = state.msInfo.pSampleMask;
+    }
+
+    if (!hasDynamicAlphaToCoverage)
+      msInfo.alphaToCoverageEnable = state.msInfo.alphaToCoverageEnable;
+
     // pNext is non-const for some reason, but this is only an input
     // structure, so we should be able to safely use const_cast.
     VkGraphicsPipelineLibraryCreateInfoEXT libInfo = { VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_LIBRARY_CREATE_INFO_EXT };
@@ -445,7 +498,7 @@ namespace dxvk {
     VkGraphicsPipelineCreateInfo info = { VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO, &libInfo };
     info.flags                = flags;
     info.pColorBlendState     = &state.cbInfo;
-    info.pMultisampleState    = &state.msInfo;
+    info.pMultisampleState    = &msInfo;
     info.pDynamicState        = &dyInfo;
     info.basePipelineIndex    = -1;
 
@@ -825,6 +878,13 @@ namespace dxvk {
     }
 
     info.undefinedInputs = (providedInputs & consumedInputs) ^ consumedInputs;
+
+    // Fix up input topology for geometry shaders as necessary
+    if (shaderInfo.stage == VK_SHADER_STAGE_GEOMETRY_BIT) {
+      VkPrimitiveTopology iaTopology = shaders.tes ? shaders.tes->info().outputTopology : state.ia.primitiveTopology();
+      info.inputTopology = determineGsInputTopology(shaderInfo.inputTopology, iaTopology);
+    }
+
     return info;
   }
 
@@ -934,7 +994,8 @@ namespace dxvk {
     m_bindings      (layout),
     m_barrier       (layout->getGlobalBarrier()),
     m_vsLibrary     (vsLibrary),
-    m_fsLibrary     (fsLibrary) {
+    m_fsLibrary     (fsLibrary),
+    m_debugName     (createDebugName()) {
     m_vsIn  = m_shaders.vs != nullptr ? m_shaders.vs->info().inputMask  : 0;
     m_fsOut = m_shaders.fs != nullptr ? m_shaders.fs->info().outputMask : 0;
     m_specConstantMask = this->computeSpecConstantMask();
@@ -943,8 +1004,7 @@ namespace dxvk {
       if (m_shaders.gs->flags().test(DxvkShaderFlag::HasTransformFeedback)) {
         m_flags.set(DxvkGraphicsPipelineFlag::HasTransformFeedback);
 
-        m_barrier.stages |= VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT
-                         |  VK_PIPELINE_STAGE_TRANSFORM_FEEDBACK_BIT_EXT;
+        m_barrier.stages |= VK_PIPELINE_STAGE_TRANSFORM_FEEDBACK_BIT_EXT;
         m_barrier.access |= VK_ACCESS_TRANSFORM_FEEDBACK_COUNTER_READ_BIT_EXT
                          |  VK_ACCESS_TRANSFORM_FEEDBACK_COUNTER_WRITE_BIT_EXT
                          |  VK_ACCESS_TRANSFORM_FEEDBACK_WRITE_BIT_EXT;
@@ -954,8 +1014,12 @@ namespace dxvk {
         m_flags.set(DxvkGraphicsPipelineFlag::HasRasterizerDiscard);
     }
     
-    if (m_barrier.access & VK_ACCESS_SHADER_WRITE_BIT)
+    if (m_barrier.access & VK_ACCESS_SHADER_WRITE_BIT) {
       m_flags.set(DxvkGraphicsPipelineFlag::HasStorageDescriptors);
+
+      if (layout->layout().getHazardousSetMask())
+        m_flags.set(DxvkGraphicsPipelineFlag::UnrollMergedDraws);
+    }
 
     if (m_shaders.fs != nullptr) {
       if (m_shaders.fs->flags().test(DxvkShaderFlag::HasSampleRateShading))
@@ -1168,6 +1232,27 @@ namespace dxvk {
     if (!m_device->features().extExtendedDynamicState3.extendedDynamicState3DepthClipEnable
      && !state.rs.depthClipEnable())
       return false;
+
+    // If the vertex shader uses any input locations not provided by
+    // the input layout, we need to patch the shader.
+    uint32_t vsInputMask = m_shaders.vs->info().inputMask;
+    uint32_t ilAttributeMask = 0u;
+
+    for (uint32_t i = 0; i < state.il.attributeCount(); i++)
+      ilAttributeMask |= 1u << state.ilAttributes[i].location();
+
+    if ((vsInputMask & ilAttributeMask) != vsInputMask)
+      return false;
+
+    if (m_shaders.gs != nullptr) {
+      // If the geometry shader's input topology is not compatible with
+      // the topology set to the pipeline, we need to patch the GS.
+      VkPrimitiveTopology iaTopology = m_shaders.tes ? m_shaders.tes->info().outputTopology : state.ia.primitiveTopology();
+      VkPrimitiveTopology gsTopology = m_shaders.gs->info().inputTopology;
+
+      if (determineGsInputTopology(gsTopology, iaTopology) != gsTopology)
+        return false;
+    }
 
     if (m_shaders.tcs != nullptr) {
       // If tessellation shaders are present, the input patch
@@ -1670,6 +1755,29 @@ namespace dxvk {
     }
 
     Logger::log(level, sstr.str());
+  }
+
+
+  std::string DxvkGraphicsPipeline::createDebugName() const {
+    std::stringstream name;
+
+    std::array<Rc<DxvkShader>, 5> shaders = {{
+      m_shaders.vs,
+      m_shaders.tcs,
+      m_shaders.tes,
+      m_shaders.gs,
+      m_shaders.fs,
+    }};
+
+    for (const auto& shader : shaders) {
+      if (shader) {
+        std::string shaderName = shader->debugName();
+        size_t len = std::min(shaderName.size(), size_t(10));
+        name << "[" << shaderName.substr(0, len) << "] ";
+      }
+    }
+
+    return name.str();
   }
   
 }
