@@ -284,7 +284,7 @@ namespace dxvk {
 
   Rc<DxvkImage> D3D9CommonTexture::CreatePrimaryImage(D3DRESOURCETYPE ResourceType, bool TryOffscreenRT, HANDLE* pSharedHandle) const {
     DxvkImageCreateInfo imageInfo;
-    imageInfo.type            = GetImageTypeFromResourceType(ResourceType, m_desc.ArraySize);
+    imageInfo.type            = GetImageTypeFromResourceType(ResourceType);
     imageInfo.format          = m_mapping.ConversionFormatInfo.FormatColor != VK_FORMAT_UNDEFINED
                               ? m_mapping.ConversionFormatInfo.FormatColor
                               : m_mapping.FormatColor;
@@ -501,7 +501,7 @@ namespace dxvk {
   }
 
 
-  VkImageType D3D9CommonTexture::GetImageTypeFromResourceType(D3DRESOURCETYPE Type, UINT Layer) {
+  VkImageType D3D9CommonTexture::GetImageTypeFromResourceType(D3DRESOURCETYPE Type) {
     switch (Type) {
       case D3DRTYPE_SURFACE:
       case D3DRTYPE_TEXTURE:       return VK_IMAGE_TYPE_2D;

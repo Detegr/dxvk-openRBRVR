@@ -438,8 +438,7 @@ namespace dxvk {
     }
 
     static VkImageType GetImageTypeFromResourceType(
-            D3DRESOURCETYPE  Dimension,
-            UINT Layer);
+            D3DRESOURCETYPE  Dimension);
 
      /**
      * \brief Tracks sequence number for a given subresource
