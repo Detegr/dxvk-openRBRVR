@@ -3622,6 +3622,7 @@ namespace dxvk {
     VkRenderingInfo renderingInfo = { VK_STRUCTURE_TYPE_RENDERING_INFO };
     renderingInfo.renderArea.extent = { mipExtent.width, mipExtent.height };
     renderingInfo.layerCount = imageViewInfo.layerCount;
+    renderingInfo.viewMask = renderingInfo.layerCount == 4 ? 0b1111 : renderingInfo.layerCount == 2 ? 0b11 : 0;
 
     if (image->formatInfo()->aspectMask & VK_IMAGE_ASPECT_COLOR_BIT) {
       renderingInfo.colorAttachmentCount = 1;
