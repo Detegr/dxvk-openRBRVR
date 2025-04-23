@@ -16,12 +16,12 @@ BEGIN
     BEGIN
       VALUE "CompanyName",      "DXVK"
       VALUE "FileDescription",  "Direct3D 9 Runtime"
-      VALUE "FileVersion",      "DXVK 2.6 (openRBRVR-2.1.x)"
+      VALUE "FileVersion",      "DXVK 2.6.1 (openRBRVR-2.1.x)"
       VALUE "InternalName",     "D3D9.dll"
       VALUE "LegalCopyright",   "zlib/libpng license"
       VALUE "OriginalFilename", "D3D9.dll"
       VALUE "ProductName",      "DXVK"
-      VALUE "ProductVersion",   "DXVK 2.6 (openRBRVR-2.1.x)"
+      VALUE "ProductVersion",   "DXVK 2.6.1 (openRBRVR-2.1.x)"
     END
   END
   BLOCK "VarFileInfo"
