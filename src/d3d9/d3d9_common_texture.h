@@ -445,7 +445,8 @@ namespace dxvk {
 
     static VkImageViewType GetImageViewTypeFromResourceType(
             D3DRESOURCETYPE  Dimension,
-            UINT             Layer);
+            UINT             Layer,
+            UINT             LayerCount);
 
      /**
      * \brief Tracks sequence number for a given subresource
@@ -558,7 +559,6 @@ namespace dxvk {
             VkImageUsageFlags         Usage) const;
 
     void ExportImageInfo();
-
   };
 
 }
