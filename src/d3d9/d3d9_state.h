@@ -287,6 +287,8 @@ namespace dxvk {
     D3DVIEWPORT9                                        viewport = {};
     RECT                                                scissorRect = {};
 
+    D3DCLIPSTATUS9                                      clipStatus = {0, 0xffffffff};
+
     ItemType<std::array<
       D3D9ClipPlane,
       caps::MaxClipPlanes>>                             clipPlanes = {};
