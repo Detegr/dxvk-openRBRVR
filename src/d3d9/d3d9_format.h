@@ -114,13 +114,17 @@ namespace dxvk {
     R2VB = MAKEFOURCC('R', '2', 'V', 'B'),
     COPM = MAKEFOURCC('C', 'O', 'P', 'M'),
     SSAA = MAKEFOURCC('S', 'S', 'A', 'A'),
-    AL16 = MAKEFOURCC('A', 'L', '1', '6'),
-    R16  = MAKEFOURCC(' ', 'R', '1', '6'),
+    NVHS = MAKEFOURCC('N', 'V', 'H', 'S'),
+    NVHU = MAKEFOURCC('N', 'V', 'H', 'U'),
 
     EXT1 = MAKEFOURCC('E', 'X', 'T', '1'),
     FXT1 = MAKEFOURCC('F', 'X', 'T', '1'),
     GXT1 = MAKEFOURCC('G', 'X', 'T', '1'),
     HXT1 = MAKEFOURCC('H', 'X', 'T', '1'),
+    AL16 = MAKEFOURCC('A', 'L', '1', '6'),
+    AR16 = MAKEFOURCC('A', 'R', '1', '6'),
+    R16  = MAKEFOURCC(' ', 'R', '1', '6'),
+    L16_FOURCC = MAKEFOURCC(' ', 'L', '1', '6'),
   };
 
   inline D3D9Format EnumerateFormat(D3DFORMAT format) {
@@ -221,8 +225,10 @@ namespace dxvk {
 
     bool CheckImageFormatSupport(
       const Rc<DxvkAdapter>&      Adapter,
-      VkFormat              Format,
-      VkFormatFeatureFlags2 Features) const;
+            VkFormat              Format,
+            VkFormatFeatureFlags2 Features) const;
+
+    D3D9Adapter* m_parent = nullptr;
 
     bool m_d24s8Support;
     bool m_d16s8Support;
@@ -272,6 +278,33 @@ namespace dxvk {
         || format == D3D9Format::R8G8B8
         || format == D3D9Format::X8R8G8B8
         || format == D3D9Format::A8R8G8B8;
+  }
+
+  inline bool IsDepthFormat(D3D9Format Format) {
+    return Format == D3D9Format::D16_LOCKABLE
+        || Format == D3D9Format::D32
+        || Format == D3D9Format::D15S1
+        || Format == D3D9Format::D24S8
+        || Format == D3D9Format::D24X8
+        || Format == D3D9Format::D24X4S4
+        || Format == D3D9Format::D16
+        || Format == D3D9Format::D32F_LOCKABLE
+        || Format == D3D9Format::D24FS8
+        || Format == D3D9Format::D32_LOCKABLE
+        || Format == D3D9Format::DF16
+        || Format == D3D9Format::DF24
+        || Format == D3D9Format::INTZ;
+  }
+
+  inline bool IsDepthStencilFormat(D3D9Format Format) {
+    return IsDepthFormat(Format) || Format == D3D9Format::S8_LOCKABLE;
+  }
+
+  inline bool IsLockableDepthStencilFormat(D3D9Format Format) {
+    return Format == D3D9Format::S8_LOCKABLE
+        || Format == D3D9Format::D16_LOCKABLE
+        || Format == D3D9Format::D32_LOCKABLE
+        || Format == D3D9Format::D32F_LOCKABLE;
   }
 
 }

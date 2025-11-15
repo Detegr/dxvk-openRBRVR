@@ -53,9 +53,11 @@ struct DxvkShaderCreateInfo {
   uint32_t outputMask = 0;
   /// Flat shading input mask
   uint32_t flatShadingInputs = 0;
-  /// Push constant range
-  VkShaderStageFlags pushConstStages = 0;
-  uint32_t pushConstSize = 0;
+  /// Push data blocks
+  DxvkPushDataBlock sharedPushData;
+  DxvkPushDataBlock localPushData;
+  /// Descriptor set and binding of global sampler heap
+  DxvkShaderBinding samplerHeap;
   /// Rasterized stream, or -1
   int32_t xfbRasterizedStream = 0;
   /// Tess control patch vertex count
@@ -113,13 +115,13 @@ public:
     return *this;
   }
 
-  ~DxvkShader();
-
   /**
    * \brief Shader info
    * \returns Shader info
    */
   const DxvkShaderCreateInfo &info() const { return m_info; }
+
+  ~DxvkShader();
 
   /**
    * \brief Retrieves shader flags
@@ -128,10 +130,10 @@ public:
   DxvkShaderFlags flags() const { return m_flags; }
 
   /**
-   * \brief Retrieves binding layout
-   * \returns Binding layout
+   * \brief Queries shader binding layout
+   * \returns Pipeline layout builder
    */
-  const DxvkBindingLayout &getBindings() const { return m_bindings; }
+  DxvkPipelineLayoutBuilder getLayout() const { return m_layout; }
 
   /**
    * \brief Retrieves spec constant mask
@@ -167,11 +169,11 @@ public:
    *
    * Rewrites binding IDs and potentially fixes up other
    * parts of the code depending on pipeline state.
-   * \param [in] layout Biding layout
+   * \param [in] bindings Biding map
    * \param [in] state Pipeline state info
    * \returns Uncompressed SPIR-V code buffer
    */
-  SpirvCodeBuffer getCode(const DxvkBindingLayoutObjects *layout,
+  SpirvCodeBuffer getCode(const DxvkShaderBindingMap*       bindings,
                           const DxvkShaderModuleCreateInfo &state) const;
 
   /**
@@ -239,10 +241,18 @@ public:
 
 private:
   struct BindingOffsets {
-    uint32_t bindingId;
-    uint32_t bindingOffset;
-    uint32_t setOffset;
+    uint32_t bindingIndex = 0u;
+    uint32_t bindingOffset = 0u;
+    uint32_t setIndex = 0u;
+    uint32_t setOffset = 0u;
   };
+
+  struct PushDataOffsets {
+    uint32_t codeOffset = 0u;
+    uint32_t pushOffset = 0u;
+  };
+
+  DxvkPipelineLayoutBuilder     m_layout;
 
   DxvkShaderCreateInfo m_info;
   SpirvCompressedBuffer m_code;
@@ -255,9 +265,8 @@ private:
   size_t m_o1LocOffset = 0;
 
   uint32_t m_specConstantMask = 0;
-  std::atomic<bool> m_needsLibraryCompile = {true};
-
   std::vector<BindingOffsets> m_bindingOffsets;
+  std::vector<PushDataOffsets>  m_pushDataOffsets;
 
   DxvkBindingLayout m_bindings;
 
@@ -398,10 +407,10 @@ public:
   DxvkShaderSet getShaderSet() const;
 
   /**
-   * \brief Generates merged binding layout
-   * \returns Binding layout
+   * \brief Builds merged binding layout
+   * \returns Pipeline layout builder
    */
-  DxvkBindingLayout getBindings() const;
+  DxvkPipelineLayoutBuilder getLayout() const;
 
   /**
    * \brief Adds a shader to the key
@@ -444,7 +453,7 @@ private:
  */
 struct DxvkShaderPipelineLibraryHandle {
   VkPipeline handle;
-  VkPipelineCreateFlags linkFlags;
+  VkPipelineCreateFlags2  linkFlags;
 };
 
 /**
@@ -459,10 +468,10 @@ struct DxvkShaderPipelineLibraryHandle {
 class DxvkShaderPipelineLibrary {
 
 public:
-  DxvkShaderPipelineLibrary(const DxvkDevice *device,
+
+  DxvkShaderPipelineLibrary( DxvkDevice *device,
                             DxvkPipelineManager *manager,
-                            const DxvkShaderPipelineLibraryKey &key,
-                            const DxvkBindingLayoutObjects *layout);
+                            const DxvkShaderPipelineLibraryKey &key);
 
   ~DxvkShaderPipelineLibrary();
 
@@ -506,10 +515,12 @@ public:
   void compilePipeline();
 
 private:
+
   const DxvkDevice *m_device;
   DxvkPipelineStats *m_stats;
   DxvkShaderSet m_shaders;
-  const DxvkBindingLayoutObjects *m_layout;
+
+  DxvkPipelineBindings            m_layout;
 
   dxvk::mutex m_mutex;
   DxvkShaderPipelineLibraryHandle m_pipeline = {VK_NULL_HANDLE, 0};
@@ -523,17 +534,20 @@ private:
 
   DxvkShaderPipelineLibraryHandle compileShaderPipelineLocked();
 
-  DxvkShaderPipelineLibraryHandle
-  compileShaderPipeline(VkPipelineCreateFlags flags);
+  DxvkShaderPipelineLibraryHandle compileShaderPipeline(
+          VkPipelineCreateFlags2        flags);
 
-  VkPipeline compileVertexShaderPipeline(const DxvkShaderStageInfo &stageInfo,
-                                         VkPipelineCreateFlags flags);
+  VkPipeline compileVertexShaderPipeline(
+    const DxvkShaderStageInfo&          stageInfo,
+          VkPipelineCreateFlags2        flags);
 
-  VkPipeline compileFragmentShaderPipeline(const DxvkShaderStageInfo &stageInfo,
-                                           VkPipelineCreateFlags flags);
+  VkPipeline compileFragmentShaderPipeline(
+    const DxvkShaderStageInfo&          stageInfo,
+          VkPipelineCreateFlags2        flags);
 
-  VkPipeline compileComputeShaderPipeline(const DxvkShaderStageInfo &stageInfo,
-                                          VkPipelineCreateFlags flags);
+  VkPipeline compileComputeShaderPipeline(
+    const DxvkShaderStageInfo&          stageInfo,
+          VkPipelineCreateFlags2        flags);
 
   SpirvCodeBuffer getShaderCode(VkShaderStageFlagBits stage) const;
 

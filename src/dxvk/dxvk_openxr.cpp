@@ -22,13 +22,13 @@ namespace dxvk {
   }
   
   
-  DxvkNameSet DxvkXrProvider::getInstanceExtensions() {
+  DxvkExtensionList DxvkXrProvider::getInstanceExtensions() {
     std::lock_guard<dxvk::mutex> lock(m_mutex);
     return m_insExtensions;
   }
 
 
-  DxvkNameSet DxvkXrProvider::getDeviceExtensions(uint32_t adapterId) {
+  DxvkExtensionList DxvkXrProvider::getDeviceExtensions(uint32_t adapterId) {
     std::lock_guard<dxvk::mutex> lock(m_mutex);
     return m_devExtensions;
   }
@@ -72,7 +72,7 @@ namespace dxvk {
   }
 
 
-  DxvkNameSet DxvkXrProvider::queryInstanceExtensions() const {
+  DxvkExtensionList DxvkXrProvider::queryInstanceExtensions() const {
     auto set = DxvkNameSet();
     set.add(VK_KHR_SURFACE_EXTENSION_NAME);
     set.add(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
@@ -89,7 +89,7 @@ namespace dxvk {
   }
   
   
-  DxvkNameSet DxvkXrProvider::queryDeviceExtensions() const {
+  DxvkExtensionList DxvkXrProvider::queryDeviceExtensions() const {
     auto set = DxvkNameSet();
     set.add(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
 
@@ -105,14 +105,14 @@ namespace dxvk {
   }
 
   
-  DxvkNameSet DxvkXrProvider::parseExtensionList(const std::string& str) const {
-    DxvkNameSet result;
+  DxvkExtensionList DxvkXrProvider::parseExtensionList(const std::string& str) const {
+    DxvkExtensionList result;
     
     std::stringstream strstream(str);
     std::string       section;
     
     while (std::getline(strstream, section, ' '))
-      result.add(section.c_str());
+      result.push_back(vk::makeExtension(section.c_str()));
     
     return result;
   }

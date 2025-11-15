@@ -345,6 +345,20 @@ namespace dxvk {
   }
   
   
+  uint32_t SpirvModule::constvec2u32(
+          uint32_t                x,
+          uint32_t                y) {
+    std::array<uint32_t, 2> args = {{
+      this->constu32(x), this->constu32(y),
+    }};
+
+    uint32_t scalarTypeId = this->defIntType(32, 0);
+    uint32_t vectorTypeId = this->defVectorType(scalarTypeId, 2);
+
+    return this->constComposite(vectorTypeId, args.size(), args.data());
+  }
+
+
   uint32_t SpirvModule::constvec4u32(
           uint32_t                x,
           uint32_t                y,
@@ -805,6 +819,8 @@ namespace dxvk {
     m_typeConstDefs.putWord(resultId);
     m_typeConstDefs.putWord(typeId);
     m_typeConstDefs.putWord(length);
+
+    m_uniqueTypes.insert(resultId);
     return resultId;
   }
   
@@ -825,6 +841,8 @@ namespace dxvk {
     m_typeConstDefs.putIns (spv::OpTypeRuntimeArray, 3);
     m_typeConstDefs.putWord(resultId);
     m_typeConstDefs.putWord(typeId);
+
+    m_uniqueTypes.insert(resultId);
     return resultId;
   }
   
@@ -862,6 +880,8 @@ namespace dxvk {
     
     for (uint32_t i = 0; i < memberCount; i++)
       m_typeConstDefs.putWord(memberTypes[i]);
+
+    m_uniqueTypes.insert(resultId);
     return resultId;
   }
   
@@ -915,19 +935,7 @@ namespace dxvk {
   uint32_t SpirvModule::newVar(
           uint32_t                pointerType,
           spv::StorageClass       storageClass) {
-    uint32_t resultId = this->allocateId();
-    
-    if (isInterfaceVar(storageClass))
-      m_interfaceVars.push_back(resultId);
-
-    auto& code = storageClass != spv::StorageClassFunction
-      ? m_variables : m_code;
-
-    code.putIns  (spv::OpVariable, 4);
-    code.putWord (pointerType);
-    code.putWord (resultId);
-    code.putWord (storageClass);
-    return resultId;
+    return newVarInit(pointerType, storageClass, 0u);
   }
   
   
@@ -943,11 +951,14 @@ namespace dxvk {
     auto& code = storageClass != spv::StorageClassFunction
       ? m_variables : m_code;
     
-    code.putIns  (spv::OpVariable, 5);
+    code.putIns  (spv::OpVariable, 4u + (initialValue ? 1u : 0u));
     code.putWord (pointerType);
     code.putWord (resultId);
     code.putWord (storageClass);
-    code.putWord (initialValue);
+
+    if (initialValue)
+      code.putWord(initialValue);
+
     return resultId;
   }
   
@@ -1607,7 +1618,20 @@ namespace dxvk {
     m_code.putWord(operand);
     return resultId;
   }
-  
+
+
+  uint32_t SpirvModule::opUConvert(
+          uint32_t                resultType,
+          uint32_t                operand) {
+    uint32_t resultId = this->allocateId();
+
+    m_code.putIns (spv::OpUConvert, 4);
+    m_code.putWord(resultType);
+    m_code.putWord(resultId);
+    m_code.putWord(operand);
+    return resultId;
+  }
+
   
   uint32_t SpirvModule::opCompositeConstruct(
           uint32_t                resultType,
@@ -3851,7 +3875,7 @@ namespace dxvk {
       for (uint32_t i = 0; i < argCount && match; i++)
         match &= ins.arg(2 + i) == argIds[i];
       
-      if (match)
+      if (match && m_uniqueTypes.find(ins.arg(1)) == m_uniqueTypes.end())
         return ins.arg(1);
     }
     

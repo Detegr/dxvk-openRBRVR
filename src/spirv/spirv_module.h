@@ -174,6 +174,10 @@ namespace dxvk {
             bool                    z,
             bool                    w);
     
+    uint32_t constvec2u32(
+            uint32_t                x,
+            uint32_t                y);
+
     uint32_t constvec4u32(
             uint32_t                x,
             uint32_t                y,
@@ -600,7 +604,11 @@ namespace dxvk {
     uint32_t opConvertUtoF(
             uint32_t                resultType,
             uint32_t                operand);
-    
+
+    uint32_t opUConvert(
+            uint32_t                resultType,
+            uint32_t                operand);
+
     uint32_t opCompositeConstruct(
             uint32_t                resultType,
             uint32_t                valueCount,
@@ -1300,6 +1308,7 @@ namespace dxvk {
     SpirvCodeBuffer m_variables;
     SpirvCodeBuffer m_code;
 
+    std::unordered_set<uint32_t> m_uniqueTypes;
     std::unordered_set<uint32_t> m_lateConsts;
 
     std::vector<uint32_t> m_interfaceVars;
