@@ -1,0 +1,4 @@
+.zig-cache/
+.cache
+zig-out
+compile_commands.json

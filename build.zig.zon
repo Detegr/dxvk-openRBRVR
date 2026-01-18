@@ -1,0 +1,33 @@
+.{
+    .name = .dxvk,
+    .version = "2.4.1",
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "include",
+        "src",
+    },
+    .dependencies = .{
+        .compile_commands = .{
+            .url = "https://github.com/the-argus/zig-compile-commands/archive/70fb439897e12cae896c071717d7c9c382918689.tar.gz",
+            .hash = "zig_compile_commands-0.0.1-OZg5-ULBAABTh3NXO3WXoSUX1474ez0EouuoT2yDANhz",
+        },
+        .directx_headers = .{
+            .url = "https://github.com/misyltoad/mingw-directx-headers/archive/9df86f2341616ef1888ae59919feaa6d4fad693d.zip",
+            .hash = "N-V-__8AAIYuPwDXuZwOoMKuJyYbLExCjX4PYQSVQfZC9e3V",
+        },
+        .libdisplay_info = .{
+            .url = "https://gitlab.freedesktop.org/frog/libdisplay-info/-/archive/windows/libdisplay-info-windows.tar.gz?ref_type=heads",
+            .hash = "N-V-__8AAGRcBQDsLp2WK4R1DoYnABDV9AW6XI4Qe5Srrjec",
+        },
+        .spirv_headers = .{
+            .url = "https://github.com/KhronosGroup/SPIRV-Headers/archive/8b246ff75c6615ba4532fe4fde20f1be090c3764.tar.gz",
+            .hash = "N-V-__8AAGZGMgDgDczbdenDYI9Mj9ScCoCpCYGzi39jZx_8",
+        },
+        .vulkan_headers = .{
+            .url = "https://github.com/KhronosGroup/Vulkan-Headers/archive/46dc0f6e514f5730784bb2cac2a7c731636839e8.tar.gz",
+            .hash = "N-V-__8AAA-gnQFjpILrHyznALPu4KawcSAk6jxkHVF2Wvpy",
+        },
+    },
+    .fingerprint = 0x6ce7e000b12bc00c,
+}

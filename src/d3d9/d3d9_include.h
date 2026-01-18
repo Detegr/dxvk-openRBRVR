@@ -10,9 +10,10 @@
 #include <stdint.h>
 #include <d3d9.h>
 
-//for some reason we need to specify __declspec(dllexport) for MinGW
 #if defined(__WINE__) || !defined(_WIN32)
   #define DLLEXPORT __attribute__((visibility("default")))
+#elif defined(__GNUC__) || defined(__clang__)
+  #define DLLEXPORT __declspec(dllexport)
 #else
   #define DLLEXPORT
 #endif
@@ -46,14 +47,6 @@
 
 #ifndef D3DSWAPEFFECT_COPY_VSYNC
 #define D3DSWAPEFFECT_COPY_VSYNC 4
-#endif
-
-// MinGW headers are broken. Who'dve guessed?
-#ifndef _MSC_VER
-typedef struct _D3DDEVINFO_RESOURCEMANAGER
-{
-  char dummy;
-} D3DDEVINFO_RESOURCEMANAGER, * LPD3DDEVINFO_RESOURCEMANAGER;
 #endif
 
 // This is the managed pool on D3D9Ex, it's just hidden!
