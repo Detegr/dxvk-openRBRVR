@@ -14,7 +14,7 @@
       nativeBuildInputs = [
         pkgs.glslang.bin
         pkgs.python3
-        zig.packages.x86_64-linux."0.15.2"
+        zig.packages.x86_64-linux."0.16.0"
         zls.packages.x86_64-linux.zls
       ];
     };

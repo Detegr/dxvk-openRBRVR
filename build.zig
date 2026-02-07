@@ -128,14 +128,16 @@ fn build_displayinfo(b: *std.Build, target: std.Build.ResolvedTarget, optimize: 
     const pnp_id_table_c = pnp_gen.addOutputFileArg("pnp-id-table.c");
     pnp_gen.addArg("pnp_id_table");
 
-    const di = b.addLibrary(.{
+    const di = b.createModule(.{
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+    });
+
+    const lib = b.addLibrary(.{
         .linkage = .static,
         .name = "display-info",
-        .root_module = b.createModule(.{
-            .target = target,
-            .optimize = optimize,
-            .link_libc = true,
-        }),
+        .root_module = di,
     });
 
     di.addCSourceFiles(.{
@@ -155,28 +157,30 @@ fn build_displayinfo(b: *std.Build, target: std.Build.ResolvedTarget, optimize: 
 
     const msvc = false; // TODO
     if (msvc) {
-        di.root_module.addCMacro("static_array", "");
-        di.root_module.addCMacro("ssize_t", "intptr_t");
+        di.addCMacro("static_array", "");
+        di.addCMacro("ssize_t", "intptr_t");
     } else {
-        di.root_module.addCMacro("static_array", "static");
-        di.root_module.addCMacro("_POSIX_C_SOURCE", "200809L");
+        di.addCMacro("static_array", "static");
+        di.addCMacro("_POSIX_C_SOURCE", "200809L");
     }
 
     di.addIncludePath(libdisplay_info_dep.path("include"));
 
-    return .{ .lib = di, .pnp_gen_step = &pnp_gen.step };
+    return .{ .lib = lib, .pnp_gen_step = &pnp_gen.step };
 }
 
 fn build_spirv(b: *std.Build, include_paths: []const std.Build.LazyPath, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) *std.Build.Step.Compile {
-    const spirv = b.addLibrary(.{
+    const spirv = b.createModule(.{
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+        .link_libcpp = true,
+    });
+
+    const lib = b.addLibrary(.{
         .linkage = .static,
         .name = "spirv",
-        .root_module = b.createModule(.{
-            .target = target,
-            .optimize = optimize,
-            .link_libc = true,
-            .link_libcpp = true,
-        }),
+        .root_module = spirv,
     });
 
     spirv.addCSourceFiles(.{
@@ -192,19 +196,21 @@ fn build_spirv(b: *std.Build, include_paths: []const std.Build.LazyPath, target:
         spirv.addIncludePath(path);
     }
 
-    return spirv;
+    return lib;
 }
 
 fn build_vulkan_loader(b: *std.Build, include_paths: []const std.Build.LazyPath, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) *std.Build.Step.Compile {
-    const vulkan_loader = b.addLibrary(.{
+    const vulkan_loader = b.createModule(.{
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+        .link_libcpp = true,
+    });
+
+    const lib = b.addLibrary(.{
         .linkage = .static,
         .name = "vkcommon",
-        .root_module = b.createModule(.{
-            .target = target,
-            .optimize = optimize,
-            .link_libc = true,
-            .link_libcpp = true,
-        }),
+        .root_module = vulkan_loader,
     });
 
     vulkan_loader.addCSourceFiles(.{
@@ -219,19 +225,21 @@ fn build_vulkan_loader(b: *std.Build, include_paths: []const std.Build.LazyPath,
         vulkan_loader.addIncludePath(path);
     }
 
-    return vulkan_loader;
+    return lib;
 }
 
 fn build_util(b: *std.Build, include_paths: []const std.Build.LazyPath, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) *std.Build.Step.Compile {
-    const util = b.addLibrary(.{
+    const util = b.createModule(.{
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+        .link_libcpp = true,
+    });
+
+    const lib = b.addLibrary(.{
         .linkage = .static,
         .name = "util",
-        .root_module = b.createModule(.{
-            .target = target,
-            .optimize = optimize,
-            .link_libc = true,
-            .link_libcpp = true,
-        }),
+        .root_module = util,
     });
 
     util.addCSourceFiles(.{
@@ -268,7 +276,7 @@ fn build_util(b: *std.Build, include_paths: []const std.Build.LazyPath, target: 
         util.addIncludePath(path);
     }
 
-    return util;
+    return lib;
 }
 
 const Wsi = struct {
@@ -277,15 +285,17 @@ const Wsi = struct {
 };
 
 fn build_wsi(b: *std.Build, include_paths: []const std.Build.LazyPath, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) Wsi {
-    const wsi = b.addLibrary(.{
+    const wsi = b.createModule(.{
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+        .link_libcpp = true,
+    });
+
+    const lib = b.addLibrary(.{
         .linkage = .static,
         .name = "wsi",
-        .root_module = b.createModule(.{
-            .target = target,
-            .optimize = optimize,
-            .link_libc = true,
-            .link_libcpp = true,
-        }),
+        .root_module = wsi,
     });
 
     wsi.addCSourceFiles(.{
@@ -306,7 +316,7 @@ fn build_wsi(b: *std.Build, include_paths: []const std.Build.LazyPath, target: s
     const di = build_displayinfo(b, target, optimize);
     wsi.linkLibrary(di.lib);
 
-    return .{ .lib = wsi, .pnp_gen_step = di.pnp_gen_step };
+    return .{ .lib = lib, .pnp_gen_step = di.pnp_gen_step };
 }
 
 const Dxvk = struct {
@@ -322,15 +332,17 @@ fn build_dxvk(
     gen_wf: *std.Build.Step.WriteFile,
     shader_wf: *std.Build.Step.WriteFile,
 ) Dxvk {
-    const dxvk = b.addLibrary(.{
+    const dxvk = b.createModule(.{
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+        .link_libcpp = true,
+    });
+
+    const lib = b.addLibrary(.{
         .linkage = .static,
         .name = "dxvk",
-        .root_module = b.createModule(.{
-            .target = target,
-            .optimize = optimize,
-            .link_libc = true,
-            .link_libcpp = true,
-        }),
+        .root_module = dxvk,
     });
 
     dxvk.addCSourceFiles(.{
@@ -404,19 +416,21 @@ fn build_dxvk(
     dxvk.linkLibrary(build_vulkan_loader(b, include_paths, target, optimize));
     dxvk.linkLibrary(wsi.lib);
 
-    return .{ .lib = dxvk, .pnp_gen_step = wsi.pnp_gen_step };
+    return .{ .lib = lib, .pnp_gen_step = wsi.pnp_gen_step };
 }
 
 fn build_dxso(b: *std.Build, include_paths: []const std.Build.LazyPath, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) *std.Build.Step.Compile {
-    const dxso = b.addLibrary(.{
+    const dxso = b.createModule(.{
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+        .link_libcpp = true,
+    });
+
+    const lib = b.addLibrary(.{
         .linkage = .static,
         .name = "dxso",
-        .root_module = b.createModule(.{
-            .target = target,
-            .optimize = optimize,
-            .link_libc = true,
-            .link_libcpp = true,
-        }),
+        .root_module = dxso,
     });
 
     dxso.addCSourceFiles(.{
@@ -442,7 +456,7 @@ fn build_dxso(b: *std.Build, include_paths: []const std.Build.LazyPath, target: 
         dxso.addIncludePath(path);
     }
 
-    return dxso;
+    return lib;
 }
 
 fn build_d3d9(
@@ -450,15 +464,18 @@ fn build_d3d9(
     target: std.Build.ResolvedTarget,
     optimize: std.builtin.OptimizeMode,
 ) *std.Build.Step.Compile {
-    const d3d9 = b.addLibrary(.{
+    const d3d9 = b.addModule("d3d9", .{
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+        .link_libcpp = true,
+    });
+
+    const lib = b.addLibrary(.{
         .linkage = .dynamic,
         .name = "d3d9",
-        .root_module = b.addModule("d3d9", .{
-            .target = target,
-            .optimize = optimize,
-            .link_libc = true,
-            .link_libcpp = true,
-        }),
+        .root_module = d3d9,
+        .win32_module_definition = b.path("src/d3d9/d3d9.def"),
     });
 
     const vkheaders = b.dependency("vulkan_headers", .{});
@@ -531,26 +548,23 @@ fn build_d3d9(
     d3d9.linkLibrary(dxvk.lib);
     d3d9.linkLibrary(build_dxso(b, include_paths, target, optimize));
 
-    d3d9.linkSystemLibrary("gdi32");
-    // d3d9.linkSystemLibrary("user32");
-    // d3d9.linkSystemLibrary("ws2_32");
-    // d3d9.linkSystemLibrary("winmm");
+    d3d9.linkSystemLibrary("gdi32", .{});
 
-    d3d9.installHeadersDirectory(vkheaders.path("include"), "", .{});
-    d3d9.installHeadersDirectory(b.path("src/d3d9"), "", .{});
+    lib.installHeadersDirectory(vkheaders.path("include"), "", .{});
+    lib.installHeadersDirectory(b.path("src/d3d9"), "", .{});
 
-    d3d9.dll_export_fns = true;
+    lib.dll_export_fns = true;
 
     // For compile_commands.json
     var targets: std.ArrayListUnmanaged(*std.Build.Step.Compile) = .empty;
-    targets.append(b.allocator, d3d9) catch @panic("OOM");
+    targets.append(b.allocator, lib) catch @panic("OOM");
     const cdb_step = zcc.createStep(b, "cdb", targets.toOwnedSlice(b.allocator) catch @panic("OOM"));
     // cdb needs generated files to exist before it can resolve include paths
     cdb_step.dependOn(&gen_wf.step);
     cdb_step.dependOn(&shader_wf.step);
     cdb_step.dependOn(dxvk.pnp_gen_step);
 
-    return d3d9;
+    return lib;
 }
 
 const cflags = [_][]const u8{

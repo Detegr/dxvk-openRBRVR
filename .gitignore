@@ -1,4 +1,5 @@
 .zig-cache/
 .cache
 zig-out
+zig-pkg/
 compile_commands.json
