@@ -1,0 +1,11 @@
+image: nixos/unstable
+environment:
+  NIX_CONFIG: "experimental-features = nix-command flakes"
+tasks:
+  - build: |
+      cd dxvk
+      nix develop --command zig build --release=fast
+artifacts:
+  - dxvk/zig-out/bin/d3d9.dll
+  - dxvk/zig-out/bin/d3d9.pdb
+  - dxvk/zig-out/lib/d3d9.lib
