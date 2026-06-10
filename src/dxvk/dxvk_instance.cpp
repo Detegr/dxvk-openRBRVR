@@ -38,8 +38,8 @@ namespace dxvk {
     // Initialize extension providers
     m_extProviders.push_back(&DxvkPlatformExts::s_instance);
 #ifdef _WIN32
-    m_extProviders.push_back(&VrInstance::s_instance);
-    // We don't need DxvkXrProvider anymore as it's just for querying Vulkan extensions
+    // We don't need to query for Vulkan extensions as openRBRVR is using OpenXR with D3D11 backend
+    // m_extProviders.push_back(&VrInstance::s_instance);
     // m_extProviders.push_back(&DxvkXrProvider::s_instance);
 #endif
 
